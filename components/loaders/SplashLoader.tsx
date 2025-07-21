@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/context/stores/auth-store";
 import { useSocketStore } from "@/context/stores/socket-store";
+import GridBackdrop, { FloatingPackets } from "@/components/system/GridBackdrop";
+import StatusTicker from "@/components/system/StatusTicker";
 
 // ─── SVG Animation ─────────────────────────────────────────────────────────
 
@@ -150,6 +152,22 @@ function LockSVG() {
   );
 }
 
+// ─── Rotating status messages ──────────────────────────────────────────────
+
+const SYNC_TICKER = [
+  "Syncing encrypted threads…",
+  "Deriving session keys…",
+  "Restoring local message cache…",
+  "Negotiating the secure channel…",
+];
+
+const BOOT_TICKER = [
+  "Loading zero-knowledge runtime…",
+  "Preparing secure storage…",
+  "Verifying device identity…",
+  "Initializing Zevra…",
+];
+
 // ─── Splash Screen ─────────────────────────────────────────────────────────
 
 export function SplashLoader() {
@@ -160,10 +178,12 @@ export function SplashLoader() {
   const authLoading = useAuthStore((s) => s.isLoading);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isConnected = useSocketStore((s) => s.isConnected);
+  const connectionError = useSocketStore((s) => s.connectionError);
 
-  // Determine if ready
+  // Determine if ready — a connection failure also ends the wait so the
+  // full-screen connection error can take over instead of hanging forever.
   const authReady = !authLoading;
-  const socketReady = !isAuthenticated || isConnected;
+  const socketReady = !isAuthenticated || isConnected || Boolean(connectionError);
   const ready = hydrated && authReady && socketReady;
 
   useEffect(() => {
@@ -180,19 +200,56 @@ export function SplashLoader() {
 
   if (!show) return null;
 
+  const ticker = isAuthenticated ? SYNC_TICKER : BOOT_TICKER;
+
   return (
     <div
-      className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white transition-opacity duration-500 dark:bg-zinc-950 ${
+      className={`fixed inset-0 z-[9999] transition-opacity duration-500 ${
         fadeOut ? "opacity-0" : "opacity-100"
       }`}
     >
-      <LockSVG />
-      <p className="mt-6 text-sm font-medium tracking-wide text-zinc-400 dark:text-zinc-500">
-        <span className="inline-flex items-center gap-2">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
-          {isAuthenticated ? "Syncing..." : "Loading..."}
-        </span>
-      </p>
+      <GridBackdrop className="h-full w-full">
+        <FloatingPackets />
+
+        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+          {/* Hero: animated lock with pulsing rings */}
+          <div className="relative mb-6 flex h-24 w-24 items-center justify-center">
+            <span
+              aria-hidden
+              className="zv-ring absolute inset-0 rounded-3xl bg-indigo-500/20"
+            />
+            <span
+              aria-hidden
+              className="zv-ring absolute inset-0 rounded-3xl bg-purple-500/20"
+              style={{ animationDelay: "1.2s" }}
+            />
+            <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl border border-indigo-500/20 bg-white/70 shadow-[0_18px_50px_-20px_rgba(99,102,241,0.6)] backdrop-blur-xl dark:border-indigo-400/20 dark:bg-white/[0.06]">
+              <LockSVG />
+            </div>
+          </div>
+
+          {/* Wordmark */}
+          <h1 className="text-lg font-semibold tracking-[0.42em] text-zinc-800 dark:text-purple-50">
+            ZEVRA
+          </h1>
+          <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.3em] text-purple-600/80 dark:text-purple-300/60">
+            Zero-knowledge relay
+          </p>
+
+          {/* Rotating status messages */}
+          <StatusTicker messages={ticker} className="mt-6 w-full max-w-xs" intervalMs={2400} />
+
+          {/* Shimmer progress bar */}
+          <div className="mt-5 h-1.5 w-52 overflow-hidden rounded-full bg-purple-500/15">
+            <div className="zv-shimmer h-full w-1/3 rounded-full bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-500" />
+          </div>
+
+          {/* Static status line */}
+          <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.25em] text-zinc-400 dark:text-zinc-500">
+            {isAuthenticated ? "Syncing sessions" : "Booting secure session"}
+          </p>
+        </div>
+      </GridBackdrop>
     </div>
   );
 }

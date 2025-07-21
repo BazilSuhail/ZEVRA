@@ -14,8 +14,6 @@ import NewGroupModal from "@/components/modals/NewGroupModal";
 import ConfirmLogoutModal from "@/components/modals/ConfirmLogoutModal";
 import {
   FiPlus,
-  FiSettings,
-  FiUser,
   FiShield,
   FiLogOut,
   FiUsers,
@@ -29,8 +27,6 @@ import { AnimatePresence, motion } from "motion/react";
 
 const bottomItems = [
   { href: "/chat/calls", icon: FiPhone, label: "Calls" },
-  { href: "/chat/settings", icon: FiSettings, label: "Settings" },
-  { href: "/chat/profile", icon: FiUser, label: "Profile" },
   { href: "/chat/audit", icon: FiShield, label: "Security" },
 ];
 
@@ -267,7 +263,7 @@ export default function Sidebar() {
   return (
     <>
       {/* ─── Desktop Sidebar ─────────────────────────────────────────── */}
-      <aside className="hidden h-full w-18 flex-col items-center border-r border-zinc-200 bg-purple-100/40 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-none md:flex">
+      <aside className="hidden h-full w-18 flex-col items-center border-r border-[#e0d8f6] bg-[#efeafc] py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-none md:flex">
         {/* Top Brand Logo */}
         <div className="relative group mb-5">
           <Link
@@ -296,7 +292,7 @@ export default function Sidebar() {
           <div className="relative group">
             <button
               onClick={() => setChatModalOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-purple-100 hover:text-purple-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-purple-400"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-white hover:text-purple-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-purple-400"
             >
               <FiPlus className="h-5 w-5" />
             </button>
@@ -311,7 +307,7 @@ export default function Sidebar() {
           <div className="relative group">
             <button
               onClick={() => setGroupModalOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-purple-100 hover:text-purple-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-purple-400"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-white hover:text-purple-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-purple-400"
             >
               <FiUsers className="h-5 w-5" />
             </button>
@@ -339,8 +335,8 @@ export default function Sidebar() {
                   href={item.href}
                   className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
                     active
-                      ? "bg-purple-100 text-purple-600 dark:bg-zinc-800 dark:text-purple-400"
-                      : "text-zinc-500 hover:bg-purple-100 hover:text-purple-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-purple-400"
+                      ? "bg-white text-purple-600 shadow-sm dark:bg-zinc-800 dark:text-purple-400"
+                      : "text-zinc-500 hover:bg-white hover:text-purple-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-purple-400"
                   }`}
                 >
                   <item.icon className="h-5 w-5" />
@@ -357,7 +353,7 @@ export default function Sidebar() {
         </div>
 
         {/* User Profile + Logout */}
-        <div className="flex flex-col items-center gap-1.5 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+        <div className="flex flex-col items-center gap-1.5 border-t border-[#e0d8f6] pt-3 dark:border-zinc-800">
           <div className="relative group">
             <Link
               href="/chat/profile"
@@ -377,7 +373,7 @@ export default function Sidebar() {
             <button
               onClick={() => setLogoutModalOpen(true)}
               disabled={loggingOut}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-purple-100 hover:text-purple-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-purple-400 disabled:opacity-50"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-white hover:text-purple-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-purple-400 disabled:opacity-50"
             >
               {loggingOut ? (
                 <FiLoader className="h-5 w-5 animate-spin" />

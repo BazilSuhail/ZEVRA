@@ -24,6 +24,7 @@ export function bindSocketHandlers(socket: AppSocket) {
     socketStore().setConnected(true);
     socketStore().setSocketId(data.socketId);
     socketStore().setReconnectAttempts(0);
+    socketStore().clearConnectionError();
 
     socket.emit(SOCKET_EVENTS.GET_UNREAD, (response) => {
       if (response.success && response.counts) {
@@ -35,6 +36,7 @@ export function bindSocketHandlers(socket: AppSocket) {
   socket.on('connect', () => {
     socketStore().setConnected(true);
     socketStore().setStatus('connected');
+    socketStore().clearConnectionError();
   });
 
   socket.on('disconnect', () => {
@@ -55,10 +57,14 @@ export function bindSocketHandlers(socket: AppSocket) {
     socketStore().setConnected(true);
     socketStore().setStatus('connected');
     socketStore().setReconnectAttempts(0);
+    socketStore().clearConnectionError();
   };
   const onReconnectFailed = () => {
     socketStore().setConnected(false);
     socketStore().setStatus('disconnected');
+    socketStore().setConnectionError(
+      'Reconnection failed — the server is unreachable.',
+    );
   };
   socket.io.on('reconnect_attempt', onReconnectAttempt);
   socket.io.on('reconnect', onReconnect);
@@ -66,7 +72,12 @@ export function bindSocketHandlers(socket: AppSocket) {
   (socket as any).__managerHandlers = { onReconnectAttempt, onReconnect, onReconnectFailed };
 
   socket.on(SOCKET_EVENTS.CONNECT_ERROR, (error) => {
-    console.error('[Socket] Connection error:', error);
+    // console.warn: console.error would pop Next.js' dev error overlay
+    console.warn('[Socket] Connection error:', error);
+    const raw = error?.message;
+    socketStore().setConnectionError(
+      typeof raw === 'string' && raw ? raw : 'Connection failed',
+    );
   });
 
   socket.on(SOCKET_EVENTS.FORCED_DISCONNECT, (data) => {

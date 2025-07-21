@@ -74,6 +74,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
+        {/*
+          Pre-paint theme boot: reads the persisted theme and sets the
+          `dark` / `light` classes on <html> before the first paint, so the
+          splash screen and error screens never flash the wrong theme.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=null;var raw=localStorage.getItem('zevra-ui');if(raw){try{var p=JSON.parse(raw);var v=p&&p.state&&p.state.theme;if(v==='light'||v==='dark'||v==='system'){t=v;}}catch(e){}}if(!t){t='system';}var dark=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',dark);}catch(e){}})();`,
+          }}
+        />
         <JsonLd />
         <Providers>{children}</Providers>
       </body>

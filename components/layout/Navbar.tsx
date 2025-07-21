@@ -16,7 +16,7 @@ export default function Navbar() {
       <div className="flex max-w-7xl mx-auto items-center justify-between gap-4">
 
         {/* Left Tile: Brand / Logo with Blurred Glow */}
-        <div className="rounded-full border border-border bg-bg-surface/80 p-3 shadow-md dark:border-border-purple dark:bg-purple-950/50 dark:shadow-purple-900/20 backdrop-blur-xl transition-all">
+        <div className="rounded-full border border-border bg-bg-surface/80 p-1 shadow-md dark:border-border-purple dark:bg-purple-950/50 dark:shadow-purple-900/20 backdrop-blur-xl transition-all">
           <Link href="/" className="flex items-center gap-2">
             <Image
               src="/zevra-logo.webp"
@@ -24,7 +24,7 @@ export default function Navbar() {
               width={120}
               height={32}
               priority
-              className="h-6 sm:h-8 w-6 sm:w-8 object-contain"
+              className="h-6 sm:h-10 w-12 sm:w-10 object-contain"
             />
           </Link>
         </div>

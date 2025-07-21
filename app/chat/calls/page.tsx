@@ -6,8 +6,27 @@ import { FiArrowLeft, FiSearch, FiPhone, FiVideo } from "react-icons/fi";
 import { getCalls, fetchAndCacheCallHistory, searchCalls, type StoredCall } from "@/lib/db";
 import { formatDuration } from "@/lib/webrtc";
 import { useAuthStore } from "@/context/stores/auth-store";
+import Skeleton from "@/components/system/Skeleton";
 
 type Filter = "all" | "incoming" | "outgoing" | "missed";
+
+// ─── Skeleton row (mirrors the real call row layout) ───────────────────────
+
+function CallRowSkeleton({ delay = 0 }: { delay?: number }) {
+  return (
+    <div className="flex items-center gap-3 px-3 py-3">
+      {/* Avatar */}
+      <Skeleton className="h-10 w-10 shrink-0" delay={delay} />
+      {/* Name + meta */}
+      <div className="min-w-0 flex-1 space-y-2">
+        <Skeleton className="h-3.5 w-32 max-w-[65%]" delay={delay + 90} />
+        <Skeleton className="h-3 w-24 max-w-[45%]" delay={delay + 180} />
+      </div>
+      {/* Time */}
+      <Skeleton className="h-3 w-10 shrink-0" delay={delay + 270} />
+    </div>
+  );
+}
 
 export default function CallLogsPage() {
   const [calls, setCalls] = useState<StoredCall[]>([]);
@@ -167,8 +186,10 @@ export default function CallLogsPage() {
           }
         `}</style>
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-600" />
+          <div aria-busy="true" aria-label="Loading call history">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <CallRowSkeleton key={i} delay={i * 90} />
+            ))}
           </div>
         ) : calls.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-zinc-400">
@@ -190,7 +211,7 @@ export default function CallLogsPage() {
             >
               {/* Avatar */}
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                {call.peerUsername[0]?.toUpperCase() || "?"}
+                {call.peerUsername?.[0]?.toUpperCase() || "?"}
               </div>
 
               {/* Info */}

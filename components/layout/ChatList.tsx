@@ -321,13 +321,13 @@ export default function ChatList() {
     return result;
   }, [sorted, search, activeTab, nameMap, user?.id]);
 
-  // ChatList: bg light=#f4f4f5 (zinc-100) / dark=#18181b (zinc-900)
+  // ChatList: light=violet wash #f7f4ff (custom) / dark=#18181b (zinc-900)
   return (
-    <div className="flex h-full w-full sm:w-70 lg:w-80 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-purple-100/40 dark:bg-zinc-900 shadow-sm dark:shadow-none">
-      <div className="border-b border-zinc-200 dark:border-zinc-800 px-4 py-3">
+    <div className="flex h-full w-full sm:w-70 lg:w-80 shrink-0 flex-col border-r border-[#e6e0f8] bg-[#f7f4ff] dark:border-zinc-800 dark:bg-zinc-900 shadow-sm dark:shadow-none">
+      <div className="border-b border-[#e9e3f9] dark:border-zinc-800 px-4 py-3">
         <h2 className="mb-3 text-lg font-bold text-zinc-900 dark:text-zinc-100">Chats</h2>
-        {/* Search: bg light=#f4f4f5 (zinc-100) / dark=#18181b (zinc-900) */}
-        <div className="flex items-center gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950 px-3 py-2 focus-within:border-purple-500 focus-within:ring-1 focus-within:ring-purple-500/40 transition-all">
+        {/* Search: light=white #ffffff on the violet wash / dark=#0a0812 (zinc-950) */}
+        <div className="flex items-center gap-2 rounded-xl border border-[#e9e3f9] bg-white dark:border-zinc-800 dark:bg-zinc-950 px-3 py-2 focus-within:border-purple-500 focus-within:ring-1 focus-within:ring-purple-500/40 transition-all">
           <FiSearch className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
           <input
             type="text"
@@ -339,7 +339,7 @@ export default function ChatList() {
         </div>
       </div>
 
-      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex border-b border-[#e9e3f9] dark:border-zinc-800">
         {([
           { key: "all" as const, label: "All", icon: null },
           { key: "direct" as const, label: "DMs", icon: FiMessageSquare },
@@ -365,11 +365,11 @@ export default function ChatList() {
           <div className="space-y-3 p-4">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 animate-pulse">
-                {/* Skeleton: bg light=#e4e4e7 (zinc-200) / dark=#3f3f46 (zinc-700) */}
-                <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+                {/* Skeleton: light=violet tint #e9e3f9 / dark=#3f3f46 (zinc-700) */}
+                <div className="h-10 w-10 rounded-full bg-[#e9e3f9] dark:bg-zinc-800" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-800" />
-                  <div className="h-2.5 w-36 rounded bg-zinc-100 dark:bg-zinc-950" />
+                  <div className="h-3 w-24 rounded bg-[#e9e3f9] dark:bg-zinc-800" />
+                  <div className="h-2.5 w-36 rounded bg-[#efecfd] dark:bg-zinc-950" />
                 </div>
               </div>
             ))}
@@ -406,9 +406,9 @@ export default function ChatList() {
             <Link
               key={room.id}
               href={isGroup ? `/chat/group/${room.id}` : `/chat/dm/${room.id}`}
-              className={`flex items-center gap-3 border-b border-zinc-100 dark:border-zinc-800/50 px-4 py-3 transition-colors hover:bg-purple-100 dark:hover:bg-zinc-800/50 ${
+              className={`flex items-center gap-3 border-b border-[#efecfd] px-4 py-3 transition-colors hover:bg-white/70 dark:border-zinc-800/50 dark:hover:bg-zinc-800/50 ${
                 pathname.includes(room.id)
-                  ? "bg-purple-100 dark:bg-zinc-800/50"
+                  ? "bg-white shadow-[inset_3px_0_0_0_#7c3aed] dark:bg-zinc-800/50 dark:shadow-[inset_3px_0_0_0_#8b5cf6]"
                   : ""
               }`}
             >
@@ -423,7 +423,7 @@ export default function ChatList() {
                 </div>
                 {/* Online dot */}
                 {isOnline && (
-                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-purple-100 dark:border-zinc-900 bg-emerald-500" />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-zinc-900 bg-emerald-500" />
                 )}
               </div>
               <div className="flex-1 overflow-hidden">

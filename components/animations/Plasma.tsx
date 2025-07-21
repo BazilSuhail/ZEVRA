@@ -1,378 +1,352 @@
-"use client"
-import React, { useEffect, useRef } from "react";
-import { Renderer, Program, Mesh, Triangle } from "ogl";
+"use client";
 
-interface PlasmaProps {
-  color?: string;
+import * as React from "react";
+import { useEffect, useRef } from "react";
+
+const VERT_SRC = `
+attribute vec2 a_pos;
+void main(){ gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+const FRAG_SRC = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+uniform vec2  uRes;
+uniform float uTime, uDpr, uCell, uDot;
+uniform float uPeak, uHeight, uThick, uFall;
+uniform vec3  uBg, uBase, uAccent, uHigh;
+uniform vec2  uMouse;
+uniform float uMouseRadius, uMouseStrength;
+
+void main(){
+  float cs = max(uCell, 2.0);
+  vec2 ci = floor(gl_FragCoord.xy / cs);
+  vec2 cc = (ci + 0.5) * cs;
+
+  float x = cc.x / uDpr;
+  float y = (uRes.y - cc.y) / uDpr;
+  float w = uRes.x / uDpr;
+  float h = uRes.y / uDpr;
+
+  float normX = (x - w * 0.5) / (w * 0.75);
+  float curveY = h * uPeak + normX * normX * (h * uHeight);
+
+  float mdx = x - uMouse.x;
+  float influence = uMouseStrength * exp(-(mdx * mdx) / (2.0 * uMouseRadius * uMouseRadius + 1.0));
+  curveY = mix(curveY, uMouse.y, influence);
+
+  float dist = abs(y - curveY);
+  float th = (140.0 + (1.0 - abs(normX)) * 80.0) * uThick;
+
+  vec3 col = uBg;
+  if (dist < th) {
+    float i = 1.0 - dist / th;
+    float waveX = sin(x * 0.015 + uTime);
+    float waveY = cos(y * 0.02 + uTime);
+    i = i * 0.7 + waveX * waveY * 0.3 * i;
+    i *= max(0.0, 1.0 - pow(abs(normX), uFall));
+
+    if (i > 0.02) {
+      float side = uDot * i * uDpr;
+      vec2 d = abs(gl_FragCoord.xy - cc);
+      float cov = 1.0 - smoothstep(side * 0.5 - 1.0, side * 0.5 + 1.0, max(d.x, d.y));
+
+      vec3 ink = mix(uBase, uAccent, clamp(pow(i, 1.1), 0.0, 1.0));
+      ink = mix(ink, uHigh, smoothstep(0.72, 1.0, i));
+      col = mix(uBg, ink, cov * clamp(i * 1.6, 0.0, 1.0));
+    }
+  }
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader | null {
+  const sh = gl.createShader(type);
+  if (!sh) return null;
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.error("PredictiveArc shader:", gl.getShaderInfoLog(sh));
+    gl.deleteShader(sh);
+    return null;
+  }
+  return sh;
+}
+
+function parseColor(input: string | undefined, fb: [number, number, number]): [number, number, number] {
+  if (!input) return fb;
+  const str = String(input).trim();
+  if (str.charAt(0) === "#") {
+    let hex = str.slice(1);
+    if (hex.length === 3 || hex.length === 4) {
+      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    if (hex.length >= 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) return [r / 255, g / 255, b / 255];
+    }
+    return fb;
+  }
+  const m = str.match(/[\d.]+/g);
+  if (m && m.length >= 3) {
+    return [
+      Math.min(255, parseFloat(m[0])) / 255,
+      Math.min(255, parseFloat(m[1])) / 255,
+      Math.min(255, parseFloat(m[2])) / 255,
+    ];
+  }
+  return fb;
+}
+
+function num(v: unknown, fb: number): number {
+  return typeof v === "number" && isFinite(v) ? v : fb;
+}
+
+function clampN(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
+export interface PlasmaProps {
+  style?: React.CSSProperties;
+  width?: number;
+  height?: number;
+  background?: string;
+  color?: string; // Maps to accentColor for easy usage
+  baseColor?: string;
+  accentColor?: string;
+  highlight?: string;
+  density?: number;
+  dotSize?: number;
   speed?: number;
   direction?: "forward" | "reverse" | "pingpong";
   scale?: number;
   opacity?: number;
   mouseInteractive?: boolean;
-  /** Internal render resolution multiplier. 1 = full res, 0.5 = quarter the pixels. Default 0.55. */
   renderScale?: number;
-  /** Hard cap on devicePixelRatio used for rendering. Default 1.5. */
   maxDpr?: number;
-  /** Target frame rate for the animation loop. Default 30. */
   targetFps?: number;
-  /** Raymarch step count — lower is cheaper, less detailed. Default 60. */
   iterations?: number;
-  lightMode?: boolean;
+  arch?: { peak?: number; archHeight?: number; thickness?: number; falloff?: number };
+  pointer?: { enabled?: boolean; radius?: number; strength?: number };
 }
 
-const hexToRgb = (hex: string): [number, number, number] => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return [1, 0.5, 0.2];
-  return [
-    parseInt(result[1], 16) / 255,
-    parseInt(result[2], 16) / 255,
-    parseInt(result[3], 16) / 255,
-  ];
-};
+type ArchGroup = { peak?: number; archHeight?: number; thickness?: number; falloff?: number };
+const ARCH_DEFAULTS: Required<ArchGroup> = { peak: 35, archHeight: 70, thickness: 100, falloff: 250 };
 
-const vertex = `#version 300 es
-precision highp float;
-in vec2 position;
-in vec2 uv;
-out vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = vec4(position, 0.0, 1.0);
-}
-`;
+type PointerGroup = { enabled?: boolean; radius?: number; strength?: number };
+const POINTER_DEFAULTS: Required<PointerGroup> = { enabled: true, radius: 220, strength: 60 };
 
-const ORIGINAL_QUALITY = 60;
+export const Plasma: React.FC<PlasmaProps> = (props) => {
+  const {
+    style,
+    background = "#030303",
+    color,
+    baseColor = "#4A3B69",
+    accentColor = color || "#B497CF",
+    highlight = "#FFFFFF",
+    density = 78,
+    dotSize = 102,
+    speed = 1,
+    direction = "forward",
+    scale = 1,
+    mouseInteractive = true,
+    renderScale = 0.55,
+    maxDpr = 2,
+    targetFps = 35,
+    arch,
+    pointer,
+    width,
+    height,
+  } = props;
 
-const buildFragment = (iterations: number) => {
-  return `#version 300 es
-precision highp float;
-uniform vec2 iResolution;
-uniform float iTime;
-uniform vec3 uCustomColor;
-uniform float uUseCustomColor;
-uniform float uSpeed;
-uniform float uDirection;
-uniform float uScale;
-uniform float uOpacity;
-uniform vec2 uMouse;
-uniform float uMouseInteractive;
-uniform float uQuality;
-uniform float uStepScale;
-uniform float uLightMode;
-out vec4 fragColor;
+  const arch_ = { ...ARCH_DEFAULTS, ...(arch || {}) };
+  const pointer_ = {
+    ...POINTER_DEFAULTS,
+    enabled: mouseInteractive,
+    ...(pointer || {}),
+  };
 
-void mainImage(out vec4 o, vec2 C) {
-  vec2 center = iResolution.xy * 0.5;
-  C = (C - center) / uScale + center;
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sizeRef = useRef({ w: 0, h: 0 });
+  sizeRef.current = { w: num(width, 0), h: num(height, 0) };
 
-  vec2 mouseOffset = (uMouse - center) * 0.0002;
-  C += mouseOffset * length(C - center) * step(0.5, uMouseInteractive);
+  const vRef = useRef<Record<string, number | string | boolean>>({});
+  const dirMultiplier = direction === "reverse" ? -1 : 1;
 
-  float i, d, z, T = iTime * uSpeed * uDirection;
-  vec3 O, p, S;
+  vRef.current = {
+    bg: background,
+    base: baseColor,
+    accent: accentColor,
+    high: highlight,
+    density: Math.round(clampN(num(density, 160), 40, 320) * (scale || 1)),
+    dotSize: clampN(num(dotSize, 100), 20, 400) / 100,
+    speed: clampN(num(speed, 1), 0, 10) * dirMultiplier,
+    peak: clampN(num(arch_.peak, 35), 0, 100) / 100,
+    archHeight: clampN(num(arch_.archHeight, 70), 0, 300) / 100,
+    thickness: clampN(num(arch_.thickness, 100), 20, 400) / 100,
+    falloff: clampN(num(arch_.falloff, 250), 50, 600) / 100,
+    pointerEnabled: pointer_.enabled !== false,
+    pointerRadius: clampN(num(pointer_.radius, 220), 40, 600),
+    pointerStrength: clampN(num(pointer_.strength, 60), 0, 100) / 100,
+  };
 
-  for (vec2 r = iResolution.xy, Q; ++i < 60.0; O += o.w/d*o.xyz) {
-    p = z*normalize(vec3(C-.5*r,r.y));
-    p.z -= 4.;
-    S = p;
-    d = p.y-T;
+  const pointerStateRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0, active: 0, targetActive: 0 });
 
-    p.x += .4*(1.+p.y)*sin(d + p.x*0.1)*cos(.34*d + p.x*0.05);
-    Q = p.xz *= mat2(cos(p.y+vec4(0,11,33,0)-T));
-    z += d = (abs(sqrt(length(Q*Q)) - .25*(5.+S.y))/3.+8e-4) * uStepScale;
-    o = 1.+sin(S.y+p.z*.5+S.z-length(S-p)+vec4(2,1,0,8));
-    if (i >= uQuality) break;
-  }
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!mouseInteractive) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const ps = pointerStateRef.current;
+    ps.targetX = e.clientX - rect.left;
+    ps.targetY = rect.height - (e.clientY - rect.top);
+    ps.targetActive = 1;
+  };
 
-  o.xyz = tanh(O/1e4);
-}
-
-bool finite1(float x){ return !(isnan(x) || isinf(x)); }
-vec3 sanitize(vec3 c){
-  return vec3(
-    finite1(c.r) ? c.r : 0.0,
-    finite1(c.g) ? c.g : 0.0,
-    finite1(c.b) ? c.b : 0.0
-  );
-}
-
-void main() {
-  vec4 o = vec4(0.0);
-  mainImage(o, gl_FragCoord.xy);
-  vec3 rgb = sanitize(o.rgb);
-
-  float intensity = (rgb.r + rgb.g + rgb.b) / 3.0;
-  vec3 customColor = intensity * uCustomColor;
-  vec3 finalColor = mix(rgb, customColor, step(0.5, uUseCustomColor));
-
-  float alpha = length(rgb) * uOpacity;
-  if (uLightMode > 0.5) {
-    vec3 source = clamp(finalColor, 0.0, 1.0);
-    float peak = max(source.r, max(source.g, source.b));
-    float floorColor = min(source.r, min(source.g, source.b));
-    vec3 chroma = (source - vec3(floorColor)) / max(peak - floorColor, 0.0001);
-    vec3 pigment = mix(source / max(peak, 0.0001), chroma, 0.68) * 0.72;
-    float energy = clamp(length(rgb) / 1.7320508, 0.0, 1.0);
-    float coverage = pow(smoothstep(0.035, 0.72, energy), 0.76) * min(uOpacity, 1.0) * 0.9;
-    fragColor = vec4(mix(vec3(1.0), pigment, coverage), 1.0);
-  } else {
-    fragColor = vec4(finalColor, alpha);
-  }
-}`;
-};
-
-export const Plasma: React.FC<PlasmaProps> = ({
-  color = "#ffffff",
-  speed = 1,
-  direction = "forward",
-  scale = 1,
-  opacity = 1,
-  mouseInteractive = true,
-  renderScale = 0.55,
-  maxDpr = 1.5,
-  targetFps = 60,
-  iterations = 60,
-  lightMode = false,
-}) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mousePos = useRef({ x: 0, y: 0 });
-  const pendingMouse = useRef<{ x: number; y: number } | null>(null);
+  const handlePointerLeave = () => {
+    pointerStateRef.current.targetActive = 0;
+  };
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    const containerEl = containerRef.current;
-
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-
-    const useCustomColor = color ? 1.0 : 0.0;
-    const customColorRgb = color ? hexToRgb(color) : [1, 1, 1];
-    const directionMultiplier = direction === "reverse" ? -1.0 : 1.0;
-
-    let renderer: Renderer;
-    try {
-      renderer = new Renderer({
-        webgl: 2,
-        alpha: true,
-        antialias: false,
-        dpr: Math.min(window.devicePixelRatio || 1, maxDpr),
-      });
-    } catch {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const gl = canvas.getContext("webgl", { alpha: false, antialias: false, depth: false });
+    if (!gl) {
+      console.error("PredictiveArc: WebGL unavailable");
       return;
     }
-    const gl = renderer.gl;
-    if (!gl) return;
-    const canvas = gl.canvas as HTMLCanvasElement;
-    canvas.style.display = "block";
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    // Rendering at renderScale internally, CSS stretches it back up.
-    containerEl.appendChild(canvas);
 
-    const geometry = new Triangle(gl);
-
-    const program = new Program(gl, {
-      vertex: vertex,
-      fragment: buildFragment(iterations),
-      uniforms: {
-        iTime: { value: 0 },
-        iResolution: { value: new Float32Array([1, 1]) },
-        uCustomColor: { value: new Float32Array(customColorRgb) },
-        uUseCustomColor: { value: useCustomColor },
-        uSpeed: { value: speed * 0.4 },
-        uDirection: { value: directionMultiplier },
-        uScale: { value: scale },
-        uOpacity: { value: opacity },
-        uMouse: { value: new Float32Array([0, 0]) },
-        uMouseInteractive: { value: mouseInteractive ? 1.0 : 0.0 },
-        uQuality: { value: iterations },
-        uStepScale: { value: ORIGINAL_QUALITY / iterations },
-        uLightMode: { value: lightMode ? 1 : 0 },
-      },
-    });
-
-    const mesh = new Mesh(gl, { geometry, program });
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!mouseInteractive) return;
-      const rect = containerEl.getBoundingClientRect();
-      // Store the latest position but don't touch GL state here, the rAF loop picks it up once per rendered frame instead of once per mouse event.
-      pendingMouse.current = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      };
-    };
-
-    if (mouseInteractive) {
-      containerEl.addEventListener("mousemove", handleMouseMove, {
-        passive: true,
-      });
+    const vs = compile(gl, gl.VERTEX_SHADER, VERT_SRC);
+    const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG_SRC);
+    if (!vs || !fs) return;
+    const prog = gl.createProgram();
+    if (!prog) return;
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.error("PredictiveArc link:", gl.getProgramInfoLog(prog));
+      return;
     }
+    gl.useProgram(prog);
 
-    let resizePending = false;
-    const setSize = () => {
-      const rect = containerEl.getBoundingClientRect();
-      const width = Math.max(1, Math.floor(rect.width * renderScale));
-      const height = Math.max(1, Math.floor(rect.height * renderScale));
-      renderer.setSize(width, height);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(prog, "a_pos");
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
-      // renderer.setSize also sets canvas.style.width/height to match the (scaled-down) drawing buffer - override that so the canvas still stretches to fill its container via CSS while the buffer stays small.
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-
-      const res = program.uniforms.iResolution.value as Float32Array;
-      res[0] = gl.drawingBufferWidth;
-      res[1] = gl.drawingBufferHeight;
+    const locs: Record<string, WebGLUniformLocation | null> = {};
+    const u = (name: string) => {
+      if (!(name in locs)) locs[name] = gl.getUniformLocation(prog, name);
+      return locs[name];
     };
-
-    const ro = new ResizeObserver(() => {
-      // Batch rapid resize events (ex. during a window drag) into one setSize per frame.
-      if (resizePending) return;
-      resizePending = true;
-      requestAnimationFrame(() => {
-        resizePending = false;
-        setSize();
-      });
-    });
-    ro.observe(containerEl);
-    setSize();
 
     let raf = 0;
-    let contextLost = false;
-    let isVisible = true;
-    let tabVisible = document.visibilityState !== "hidden";
-    const t0 = performance.now();
+    let last = performance.now();
+    let clock = 0;
     const frameInterval = 1000 / targetFps;
     let lastFrameTime = 0;
 
-    const renderStaticFrame = () => {
-      (program.uniforms.iTime as any).value = 0;
-      renderer.render({ scene: mesh });
-    };
+    const render = (now: number) => {
+      raf = requestAnimationFrame(render);
 
-    const loop = (t: number) => {
-      if (contextLost || !isVisible || !tabVisible) return;
-
-      if (t - lastFrameTime < frameInterval) {
-        raf = requestAnimationFrame(loop);
+      if (targetFps && now - lastFrameTime < frameInterval) {
         return;
       }
-      lastFrameTime = t;
+      lastFrameTime = now;
 
-      if (pendingMouse.current) {
-        mousePos.current = pendingMouse.current;
-        pendingMouse.current = null;
-        const mouseUniform = program.uniforms.uMouse.value as Float32Array;
-        mouseUniform[0] = mousePos.current.x;
-        mouseUniform[1] = mousePos.current.y;
-      }
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const v = vRef.current;
 
-      let timeValue = (t - t0) * 0.001;
-      if (direction === "pingpong") {
-        const pingpongDuration = 10;
-        const segmentTime = timeValue % pingpongDuration;
-        const isForward = Math.floor(timeValue / pingpongDuration) % 2 === 0;
-        const u = segmentTime / pingpongDuration;
-        const smooth = u * u * (3 - 2 * u);
-        const pingpongTime = isForward
-          ? smooth * pingpongDuration
-          : (1 - smooth) * pingpongDuration;
-        (program.uniforms.uDirection as any).value = 1.0;
-        (program.uniforms.iTime as any).value = pingpongTime;
-      } else {
-        (program.uniforms.iTime as any).value = timeValue;
+      clock = (clock + dt * 0.9 * (v.speed as number)) % 6283;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+      const cw = sizeRef.current.w || canvas.clientWidth || 1200;
+      const ch = sizeRef.current.h || canvas.clientHeight || 800;
+      
+      const bw = Math.max(1, Math.round(cw * dpr * renderScale));
+      const bh = Math.max(1, Math.round(ch * dpr * renderScale));
+      
+      if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw;
+        canvas.height = bh;
       }
-      renderer.render({ scene: mesh });
-      raf = requestAnimationFrame(loop);
+      gl.viewport(0, 0, bw, bh);
+
+      const pitchCss = Math.min(cw, ch) / (v.density as number);
+
+      const ps = pointerStateRef.current;
+      const posLerp = Math.min(1, dt * 12);
+      const activeLerp = Math.min(1, dt * 6);
+      ps.x += (ps.targetX - ps.x) * posLerp;
+      ps.y += (ps.targetY - ps.y) * posLerp;
+      ps.active += (ps.targetActive - ps.active) * activeLerp;
+
+      gl.uniform2f(u("uRes"), bw, bh);
+      gl.uniform1f(u("uTime"), clock);
+      gl.uniform1f(u("uDpr"), dpr * renderScale);
+      gl.uniform1f(u("uCell"), Math.max(2, pitchCss * dpr * renderScale));
+      gl.uniform1f(u("uDot"), pitchCss * 1.2 * (v.dotSize as number) * dpr * renderScale);
+      gl.uniform1f(u("uPeak"), v.peak as number);
+      gl.uniform1f(u("uHeight"), v.archHeight as number);
+      gl.uniform1f(u("uThick"), v.thickness as number);
+      gl.uniform1f(u("uFall"), v.falloff as number);
+      gl.uniform2f(u("uMouse"), ps.x * dpr * renderScale, (cw ? (canvas.clientHeight - ps.y) : ps.y) * dpr * renderScale);
+      gl.uniform1f(u("uMouseRadius"), (v.pointerRadius as number) * dpr * renderScale);
+      gl.uniform1f(
+        u("uMouseStrength"),
+        v.pointerEnabled ? (v.pointerStrength as number) * ps.active : 0
+      );
+
+      const cg = parseColor(v.bg as string, [0.012, 0.012, 0.012]);
+      const cb = parseColor(v.base as string, [0.29, 0.23, 0.41]);
+      const ca = parseColor(v.accent as string, [0.7, 0.59, 0.81]);
+      const chh = parseColor(v.high as string, [1, 1, 1]);
+
+      gl.uniform3f(u("uBg"), cg[0], cg[1], cg[2]);
+      gl.uniform3f(u("uBase"), cb[0], cb[1], cb[2]);
+      gl.uniform3f(u("uAccent"), ca[0], ca[1], ca[2]);
+      gl.uniform3f(u("uHigh"), chh[0], chh[1], chh[2]);
+
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
 
-    const handleContextLost = (e: Event) => {
-      e.preventDefault();
-      contextLost = true;
-      cancelAnimationFrame(raf);
-    };
-    const handleContextRestored = () => {
-      contextLost = false;
-      if (isVisible && tabVisible && !prefersReducedMotion) {
-        cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(loop);
-      }
-    };
-    canvas.addEventListener("webglcontextlost", handleContextLost);
-    canvas.addEventListener("webglcontextrestored", handleContextRestored);
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        const wasVisible = isVisible;
-        isVisible = entry.isIntersecting;
-        if (
-          isVisible &&
-          !wasVisible &&
-          !contextLost &&
-          tabVisible &&
-          !prefersReducedMotion
-        ) {
-          cancelAnimationFrame(raf);
-          raf = requestAnimationFrame(loop);
-        }
-      },
-      { threshold: 0 },
-    );
-    io.observe(containerEl);
-
-    const handleVisibilityChange = () => {
-      tabVisible = document.visibilityState !== "hidden";
-      if (tabVisible && isVisible && !contextLost && !prefersReducedMotion) {
-        cancelAnimationFrame(raf);
-        lastFrameTime = 0;
-        raf = requestAnimationFrame(loop);
-      } else {
-        cancelAnimationFrame(raf);
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Respect prefers-reduced-motion: paint one frame and stop, rather than running a perpetual animation loop for users who've asked not to see motion.
-    if (prefersReducedMotion) {
-      renderStaticFrame();
-    } else {
-      raf = requestAnimationFrame(loop);
-    }
+    raf = requestAnimationFrame(render);
 
     return () => {
       cancelAnimationFrame(raf);
-      ro.disconnect();
-      io.disconnect();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      canvas.removeEventListener("webglcontextlost", handleContextLost);
-      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
-      if (mouseInteractive && containerEl) {
-        containerEl.removeEventListener("mousemove", handleMouseMove);
-      }
-      try {
-        containerEl?.removeChild(canvas);
-      } catch {}
     };
-  }, [
-    color,
-    speed,
-    direction,
-    scale,
-    opacity,
-    mouseInteractive,
-    renderScale,
-    maxDpr,
-    targetFps,
-    iterations,
-    lightMode,
-  ]);
+  }, [maxDpr, renderScale, targetFps, mouseInteractive]);
 
   return (
     <div
-      ref={containerRef}
-      className="w-full h-full relative  overflow-hidden"
-    />
+      style={{
+        position: "relative",
+        overflow: "hidden",
+        background,
+        width: typeof width === "number" && width > 0 ? width : "100%",
+        height: typeof height === "number" && height > 0 ? height : "100%",
+        touchAction: "none",
+        ...style,
+      }}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+      onPointerCancel={handlePointerLeave}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}
+      />
+    </div>
   );
 };
 

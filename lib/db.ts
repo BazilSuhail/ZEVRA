@@ -320,7 +320,9 @@ export async function searchCalls(query: string): Promise<StoredCall[]> {
   const database = getDB();
   const lower = query.toLowerCase();
   const all = await database.calls.toArray();
-  return all.filter((c) => c.peerUsername.toLowerCase().includes(lower));
+  return all.filter((c) =>
+    (c.peerUsername ?? '').toLowerCase().includes(lower),
+  );
 }
 
 // ─── Server Call History ─────────────────────────────────────────────────────
@@ -369,7 +371,10 @@ export async function fetchAndCacheCallHistory(
     id: c.id,
     type: c.type as 'WEBRTC' | 'LIVEKIT',
     peerId: c.caller_id === userId ? c.callee_id : c.caller_id,
-    peerUsername: c.caller_id === userId ? c.callee_username : c.caller_username,
+    // username columns are nullable server-side (deleted / unknown peers)
+    peerUsername:
+      (c.caller_id === userId ? c.callee_username : c.caller_username) ||
+      'Unknown',
     direction: c.caller_id === userId ? 'outgoing' : 'incoming',
     startedAt: c.started_at,
     endedAt: c.ended_at,

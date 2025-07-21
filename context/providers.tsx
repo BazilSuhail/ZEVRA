@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { connectSocket, disconnectSocket, type AppSocket } from '@/lib/socket';
 import { bindSocketHandlers, unbindSocketHandlers } from '@/lib/socket-handlers';
 import { useAuthStore } from '@/context/stores/auth-store';
 import { useSocketStore } from '@/context/stores/socket-store';
+import { useUiStore } from '@/context/stores/ui-store';
 import { setTokens, loadRefreshToken, api, getAccessToken } from '@/utils/api';
 import { initCallRingtone } from '@/utils/ringtone';
 import OutgoingCallModal from '@/components/calls/OutgoingCallModal';
 import IncomingCallModal from '@/components/calls/IncomingCallModal';
 import ActiveCallOverlay from '@/components/calls/ActiveCallOverlay';
 import CallEndedOverlay from '@/components/calls/CallEndedOverlay';
+import ConnectionErrorScreen from '@/components/errors/ConnectionErrorScreen';
 
 // ─── Socket Manager ─────────────────────────────────────────────────────────
 
@@ -45,6 +48,47 @@ function destroySocket() {
     socketInstance = null;
     socketToken = null;
   }
+}
+
+/**
+ * Tear down the current socket and start a fresh connection attempt.
+ * Used by the connection error screen's "Retry connection" button.
+ */
+export function retryConnection() {
+  const token = useAuthStore.getState().accessToken || getAccessToken();
+  useSocketStore.getState().setStatus('connecting');
+
+  if (!token) {
+    // No credentials to reconnect with — a full reload re-runs auth boot.
+    window.location.reload();
+    return;
+  }
+
+  destroySocket();
+  initSocket(token);
+}
+
+// ─── Theme: apply the persisted theme app-wide (works on every route, not
+//     just where <ThemeToggle /> happens to be mounted) ─────────────────────
+
+function useThemeSync() {
+  const theme = useUiStore((s) => s.theme);
+
+  useEffect(() => {
+    const apply = (resolved: 'light' | 'dark') => {
+      document.documentElement.classList.toggle('dark', resolved === 'dark');
+    };
+
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      apply(mq.matches ? 'dark' : 'light');
+      const onChange = (e: MediaQueryListEvent) => apply(e.matches ? 'dark' : 'light');
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+
+    apply(theme);
+  }, [theme]);
 }
 
 // ─── Auth Init ──────────────────────────────────────────────────────────────
@@ -128,14 +172,36 @@ function useSocketLifecycle() {
 
 // ─── Providers ──────────────────────────────────────────────────────────────
 
+/**
+ * Marketing routes keep their own experience — the full-screen connection
+ * error never covers them. It only surfaces on the app routes (chat and
+ * friends). The underlying error state is kept either way, so navigating to
+ * `/chat` still shows it.
+ */
+const NO_ERROR_OVERLAY = new Set(['/', '/about', '/architecture']);
+
 export function Providers({ children }: { children: ReactNode }) {
   useAuthInit();
   useSocketLifecycle();
+  useThemeSync();
 
   // Central ringtone: starts on incoming call, stops on decline/accept/end
   useEffect(() => {
     initCallRingtone();
   }, []);
+
+  const pathname = usePathname();
+  const connectionError = useSocketStore((s) => s.connectionError);
+  const isConnected = useSocketStore((s) => s.isConnected);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  // Only surface the overlay for an authenticated session — that's the only
+  // case where the socket (and therefore a socket failure) exists — and only
+  // on app routes, never on home / about / architecture.
+  const showConnectionError =
+    isAuthenticated &&
+    Boolean(connectionError) &&
+    !isConnected &&
+    !NO_ERROR_OVERLAY.has(pathname);
 
   return (
     <>
@@ -144,6 +210,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <IncomingCallModal />
       <ActiveCallOverlay />
       <CallEndedOverlay />
+      {showConnectionError && <ConnectionErrorScreen onRetry={retryConnection} />}
     </>
   );
 }

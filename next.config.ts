@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 const isProd = process.env.NODE_ENV === "production";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      // Settings merged into the profile page
+      { source: "/chat/settings", destination: "/chat/profile", permanent: false },
+    ];
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [

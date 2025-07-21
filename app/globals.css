@@ -59,6 +59,10 @@
 
   /* Dot Grid */
   --dot-color: rgba(147, 51, 234, 0.35);
+
+  /* Gradient Grid (error / splash screens) — visible on the light base */
+  --grid-line: rgba(124, 58, 237, 0.16);
+  --grid-line-2: rgba(99, 102, 241, 0.12);
 }
 
 /* ─── Light Mode Override ──────────────────────────────────────── */
@@ -97,6 +101,13 @@
 
   /* Dot Grid */
   --dot-color: rgba(124, 58, 237, 0.15);
+}
+
+/* ─── Dark Mode Override (`.dark` class on <html>) ─────────────── */
+.dark, :where(.dark, .dark *) {
+  /* Gradient Grid (error / splash screens) — visible on the dark base */
+  --grid-line: rgba(168, 85, 247, 0.18);
+  --grid-line-2: rgba(139, 92, 246, 0.12);
 }
 
 /* ─── Dark Neumorphism (Without Shadows) ────────────────────────── */
@@ -231,4 +242,106 @@ html {
 
 .auth-page {
   color-scheme: dark;
+}
+
+/* ─── Grid Backdrop Animations (error / splash screens) ─────────── */
+
+@keyframes zv-grid-drift {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 44px 44px, 44px 44px;
+  }
+}
+
+@keyframes zv-grid-drift-rev {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -26px 26px;
+  }
+}
+
+@keyframes zv-scan {
+  0% {
+    transform: translateY(-10vh);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh);
+    opacity: 0;
+  }
+}
+
+@keyframes zv-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes zv-pulse-ring {
+  0% {
+    transform: scale(0.72);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.75);
+    opacity: 0;
+  }
+}
+
+@keyframes zv-shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(420%);
+  }
+}
+
+.zv-grid-lines {
+  animation: zv-grid-drift 26s linear infinite;
+}
+
+.zv-grid-lines-rev {
+  animation: zv-grid-drift-rev 40s linear infinite;
+}
+
+.zv-scan {
+  animation: zv-scan 7s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.zv-float {
+  animation: zv-float 7s ease-in-out infinite;
+}
+
+.zv-ring {
+  animation: zv-pulse-ring 2.4s ease-out infinite;
+}
+
+.zv-shimmer {
+  animation: zv-shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zv-grid-lines,
+  .zv-grid-lines-rev,
+  .zv-scan,
+  .zv-float,
+  .zv-ring,
+  .zv-shimmer {
+    animation: none !important;
+  }
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { Marquee } from "entity-react-marquee";
 import {
   SiPostgresql,
   SiReact,
@@ -17,7 +16,7 @@ const BullMQIcon: IconType = (props) => (
   </svg>
 );
 
-const items = [
+const baseItems = [
   { icon: BullMQIcon, text: "BullMQ" },
   { icon: SiPostgresql, text: "PostgreSQL" },
   { icon: SiReact, text: "React" },
@@ -27,33 +26,49 @@ const items = [
   { icon: SiNodedotjs, text: "Node.js" },
 ];
 
+// Duplicate items 4x to ensure a wide enough track for seamless infinite looping
+const duplicatedItems = [...baseItems, ...baseItems, ...baseItems, ...baseItems];
+
 export default function TechStackMarquee() {
   return (
-    <div className="max-w-7xl mx-auto py-8 mt-12 lg:mt-30">
+    <div className="max-w-7xl mx-auto py-8 mt-12 lg:mt-30 overflow-hidden space-y-4">
       <p className="text-center font-mono text-xs tracking-[0.3em] text-neutral-500 uppercase mb-6">
         Tech Stack
       </p>
-      <Marquee
-        speed={35}
-        gap={24}
-        maskColor="black"
-        maskIntensity={0.15}
-        maskWidth={100}
-        direction="left"
-        pauseOnHover
-      >
-        {items.map((item, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-2.5 whitespace-nowrap rounded-full border border-neutral-800 bg-neutral-900/50 px-5 py-2.5 backdrop-blur-sm"
-          >
-            <item.icon className="h-4 w-4 text-neutral-300" />
-            <span className="font-mono text-sm tracking-wide text-neutral-300">
-              {item.text}
-            </span>
-          </div>
-        ))}
-      </Marquee>
+
+      {/* Row 1: Scrolling Left */}
+      <div className="relative w-full overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]">
+        <div className="flex w-max animate-marquee-left hover:[animation-play-state:paused] gap-6 py-2">
+          {duplicatedItems.map((item, i) => (
+            <div
+              key={`row1-${i}`}
+              className="flex items-center gap-2.5 whitespace-nowrap rounded-full border border-neutral-800 bg-neutral-900/50 px-5 py-2.5 backdrop-blur-sm shrink-0"
+            >
+              <item.icon className="h-4 w-4 text-neutral-300" />
+              <span className="font-mono text-sm tracking-wide text-neutral-300">
+                {item.text}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Row 2: Scrolling Right (Opposite Direction) */}
+      <div className="relative w-full overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]">
+        <div className="flex w-max animate-marquee-right hover:[animation-play-state:paused] gap-6 py-2">
+          {duplicatedItems.map((item, i) => (
+            <div
+              key={`row2-${i}`}
+              className="flex items-center gap-2.5 whitespace-nowrap rounded-full border border-neutral-800 bg-neutral-900/50 px-5 py-2.5 backdrop-blur-sm shrink-0"
+            >
+              <item.icon className="h-4 w-4 text-neutral-300" />
+              <span className="font-mono text-sm tracking-wide text-neutral-300">
+                {item.text}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

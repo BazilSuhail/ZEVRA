@@ -11,6 +11,10 @@ export interface SocketState {
   isConnected: boolean;
   reconnectAttempts: number;
   onlineUsers: Record<string, boolean>;
+  /** Last websocket connection error message (null when healthy / never attempted). */
+  connectionError: string | null;
+  /** Consecutive failed connection attempts — increments per `connect_error`. */
+  failedAttempts: number;
 }
 
 export interface SocketActions {
@@ -22,6 +26,10 @@ export interface SocketActions {
   setUsersOnline: (userIds: string[]) => void;
   setUserOnline: (userId: string) => void;
   setUserOffline: (userId: string) => void;
+  /** Record a failed connection attempt (shows the connection error screen). */
+  setConnectionError: (error: string) => void;
+  /** Clear the connection error (called on successful connect). */
+  clearConnectionError: () => void;
   reset: () => void;
 }
 
@@ -36,6 +44,8 @@ export const useSocketStore = create<SocketState & SocketActions>()(
       isConnected: false,
       reconnectAttempts: 0,
       onlineUsers: {},
+      connectionError: null,
+      failedAttempts: 0,
 
       // Actions
       setStatus: (status) => set({ status }, false, 'setStatus'),
@@ -94,6 +104,23 @@ export const useSocketStore = create<SocketState & SocketActions>()(
           'setUserOffline',
         ),
 
+      setConnectionError: (error) =>
+        set(
+          (state) => ({
+            connectionError: error,
+            failedAttempts: state.failedAttempts + 1,
+          }),
+          false,
+          'setConnectionError',
+        ),
+
+      clearConnectionError: () =>
+        set(
+          { connectionError: null, failedAttempts: 0 },
+          false,
+          'clearConnectionError',
+        ),
+
       reset: () =>
         set(
           {
@@ -102,6 +129,8 @@ export const useSocketStore = create<SocketState & SocketActions>()(
             isConnected: false,
             reconnectAttempts: 0,
             onlineUsers: {},
+            connectionError: null,
+            failedAttempts: 0,
           },
           false,
           'reset',

@@ -16,7 +16,7 @@
     "@supabase/supabase-js": "^2.112.4",
     "axios": "^1.19.0",
     "dexie": "^4.4.5",
-    "entity-react-marquee": "^2.1.0",
+    "entity-react-marquee": "^3.0.0",
     "feral-blob": "^0.1.0",
     "lenis": "^1.3.26",
     "livekit-client": "^2.22.2",
