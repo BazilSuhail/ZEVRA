@@ -1,67 +1,127 @@
 "use client";
 
-import { motion } from "motion/react";
-import Sidebar from "@/components/Sidebar";
 import Link from "next/link";
+import { motion } from "motion/react";
+import { FiShield, FiLock, FiZap, FiArrowRight } from "react-icons/fi";
+import ThemeToggle from "@/components/theme/ThemeToggle";
+import { useAuth } from "@/context/useAuth";
+import { useRouter } from "next/navigation";
 
-const channels = [
-  { id: "1", name: "Alice Johnson", lastMessage: "Hey, how are you?", unread: 2, time: "2m", online: true },
-  { id: "2", name: "Dev Team", lastMessage: "Sprint planning at 3pm", unread: 0, time: "15m", online: false },
-  { id: "3", name: "Bob Smith", lastMessage: "Check out this link", unread: 5, time: "1h", online: true },
-  { id: "4", name: "Family Group", lastMessage: "Mom: Dinner tonight?", unread: 1, time: "3h", online: false },
-  { id: "5", name: "Carol Davis", lastMessage: "Thanks for the help!", unread: 0, time: "1d", online: false },
-];
+export default function LandingPage() {
+  const { isLoggedIn } = useAuth();
+  const router = useRouter();
 
-export default function ChatListPage() {
   return (
-    <div className="flex h-screen flex-1 overflow-hidden">
-      <Sidebar />
-      <div className="flex flex-1 flex-col">
-        <div className="border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <h1 className="text-xl font-bold">Messages</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">5 conversations</p>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {channels.map((ch, i) => (
-            <motion.div
-              key={ch.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <Link
-                href={`/channel/${ch.id}`}
-                className="flex items-center gap-4 border-b border-zinc-100 px-6 py-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      {/* Navbar */}
+      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-zinc-200 bg-white/80 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/80">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <Link href="/" className="text-xl font-bold">
+            Zevra
+          </Link>
+          <div className="flex items-center gap-6">
+            <Link href="/about" className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
+              About
+            </Link>
+            <ThemeToggle />
+            {isLoggedIn ? (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => router.push("/chat")}
+                className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
               >
-                <div className="relative">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-lg font-bold text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                    {ch.name[0]}
-                  </div>
-                  {ch.online && (
-                    <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 dark:border-zinc-900" />
-                  )}
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">{ch.name}</span>
-                    <span className="text-xs text-zinc-400">{ch.time}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="truncate text-sm text-zinc-500 dark:text-zinc-400">
-                      {ch.lastMessage}
-                    </span>
-                    {ch.unread > 0 && (
-                      <span className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
-                        {ch.unread}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                Open Chat
+              </motion.button>
+            ) : (
+              <Link href="/login">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                >
+                  Get Started
+                </motion.button>
               </Link>
-            </motion.div>
-          ))}
+            )}
+          </div>
         </div>
-      </div>
+      </nav>
+
+      {/* Hero */}
+      <section className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="max-w-3xl"
+        >
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+            <FiShield className="h-4 w-4" />
+            End-to-End Encrypted
+          </div>
+
+          <h1 className="mb-6 text-5xl font-bold leading-tight tracking-tight md:text-7xl">
+            Private messaging
+            <br />
+            <span className="text-emerald-500">you can trust</span>
+          </h1>
+
+          <p className="mb-10 text-lg text-zinc-600 dark:text-zinc-400 md:text-xl">
+            Zevra is a secure, end-to-end encrypted chat app built for people
+            who value their privacy. No backdoors, no tracking, no compromise.
+          </p>
+
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <Link href="/login">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 rounded-full bg-emerald-600 px-8 py-3.5 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Get Started
+                <FiArrowRight className="h-4 w-4" />
+              </motion.button>
+            </Link>
+            <Link href="/about">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="rounded-full border border-zinc-200 px-8 py-3.5 text-sm font-semibold dark:border-zinc-700"
+              >
+                Learn More
+              </motion.button>
+            </Link>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Features */}
+      <section className="px-6 pb-24">
+        <div className="mx-auto max-w-5xl">
+          <h2 className="mb-12 text-center text-3xl font-bold">Why Zevra?</h2>
+          <div className="grid gap-6 md:grid-cols-3">
+            {[
+              { icon: FiLock, title: "E2E Encrypted", desc: "Only you and your recipient can read messages." },
+              { icon: FiShield, title: "Zero Knowledge", desc: "We never see your data. Privacy by design." },
+              { icon: FiZap, title: "Lightning Fast", desc: "Instant delivery with modern infrastructure." },
+            ].map((f, i) => (
+              <motion.div
+                key={f.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
+              >
+                <f.icon className="mb-4 h-8 w-8 text-emerald-500" />
+                <h3 className="mb-2 text-lg font-semibold">{f.title}</h3>
+                <p className="text-zinc-600 dark:text-zinc-400">{f.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

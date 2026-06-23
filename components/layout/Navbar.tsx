@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import ThemeToggle from "./ThemeToggle";
+import ThemeToggle from "../theme/ThemeToggle";
 import { motion } from "motion/react";
 import { FiShield } from "react-icons/fi";
 

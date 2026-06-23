@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import Sidebar from "@/components/Sidebar";
+import Sidebar from "@/components/layout/Sidebar";
 import { FiClipboard, FiLogIn, FiKey, FiShield, FiAlertTriangle } from "react-icons/fi";
 
 const events = [
@@ -22,27 +22,13 @@ export default function AuditPage() {
           <h1 className="text-xl font-bold">Audit Log</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">Login history and security events</p>
         </div>
-
         <div className="flex-1 px-6 py-6">
           <div className="mx-auto max-w-2xl">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
-            >
-              <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-                <FiClipboard className="h-5 w-5 text-emerald-500" />
-                Recent Activity
-              </h2>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+              <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><FiClipboard className="h-5 w-5 text-emerald-500" />Recent Activity</h2>
               <div className="space-y-3">
                 {events.map((event, i) => (
-                  <motion.div
-                    key={event.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="flex items-start gap-3 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800"
-                  >
+                  <motion.div key={event.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="flex items-start gap-3 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800">
                     <event.icon className={`mt-0.5 h-5 w-5 shrink-0 ${event.color}`} />
                     <div className="flex-1">
                       <p className="text-sm">{event.message}</p>

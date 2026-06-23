@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FiShield, FiMail, FiLock, FiUser } from "react-icons/fi";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/useAuth";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -10,13 +13,28 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const router = useRouter();
+  const { login, register } = useAuth();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (mode === "login") {
+      login(email, password);
+    } else {
+      register(name, email, password);
+    }
+    router.push("/chat");
   };
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-background p-6">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
+      <div className="absolute right-6 top-6">
+        <ThemeToggle />
+      </div>
+      <Link href="/" className="absolute left-6 top-6 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white">
+        ← Back to Home
+      </Link>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -102,16 +120,22 @@ export default function LoginPage() {
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             type="submit"
-            className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+            className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             {mode === "login" ? "Sign In" : "Create Account"}
           </motion.button>
         </form>
 
         <p className="mt-6 text-center text-xs text-zinc-500 dark:text-zinc-400">
-          <Link href="/" className="text-emerald-500 hover:underline">
-            Continue without account
-          </Link>
+          <button
+            onClick={() => {
+              login("guest@zevra.app", "guest");
+              router.push("/chat");
+            }}
+            className="text-emerald-500 hover:underline"
+          >
+            Continue as Guest
+          </button>
         </p>
       </motion.div>
     </div>
