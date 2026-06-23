@@ -1,69 +1,107 @@
-import Image from "next/image";
+"use client";
+
+import Link from "next/link";
+import { motion } from "motion/react";
+import { FiShield, FiLock, FiZap, FiEyeOff, FiArrowRight } from "react-icons/fi";
+
+const features = [
+  {
+    icon: FiLock,
+    title: "End-to-End Encrypted",
+    description: "Messages are encrypted on your device and can only be read by the intended recipient.",
+  },
+  {
+    icon: FiEyeOff,
+    title: "Zero Knowledge",
+    description: "We never see your messages, contacts, or metadata. Your privacy is absolute.",
+  },
+  {
+    icon: FiZap,
+    title: "Lightning Fast",
+    description: "Built on modern infrastructure for instant message delivery worldwide.",
+  },
+  {
+    icon: FiShield,
+    title: "Open Source",
+    description: "Fully auditable code. Verify our security claims yourself.",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <div className="flex flex-1 flex-col bg-background text-foreground">
+      <section className="flex min-h-[calc(100vh-80px)] flex-col items-center justify-center px-6 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="max-w-3xl"
+        >
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+            <FiShield className="h-4 w-4" />
+            End-to-End Encrypted
+          </div>
+
+          <h1 className="mb-6 text-5xl font-bold leading-tight tracking-tight md:text-7xl">
+            Private messaging
+            <br />
+            <span className="text-emerald-500">you can trust</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <p className="mb-10 text-lg text-zinc-600 dark:text-zinc-400 md:text-xl">
+            Zevra is a secure, end-to-end encrypted chat app built for people
+            who value their privacy. No backdoors, no tracking, no compromise.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <Link
+              href="#"
+              className="flex items-center gap-2 rounded-full bg-emerald-600 px-8 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+            >
+              Get Started
+              <FiArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/about"
+              className="flex items-center gap-2 rounded-full border border-zinc-200 px-8 py-3.5 text-sm font-semibold transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Learn More
+            </Link>
+          </div>
+        </motion.div>
+      </section>
+
+      <section className="px-6 pb-24">
+        <div className="mx-auto max-w-5xl">
+          <motion.h2
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="mb-12 text-center text-3xl font-bold"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            Why Zevra?
+          </motion.h2>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {features.map((feature, i) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
+              >
+                <feature.icon className="mb-4 h-8 w-8 text-emerald-500" />
+                <h3 className="mb-2 text-lg font-semibold">{feature.title}</h3>
+                <p className="text-zinc-600 dark:text-zinc-400">
+                  {feature.description}
+                </p>
+              </motion.div>
+            ))}
+          </div>
         </div>
-      </main>
+      </section>
     </div>
   );
 }
