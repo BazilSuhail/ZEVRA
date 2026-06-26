@@ -30,6 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Ignore all markdown files
+*.md
+
+# Exception for README
+!README.md
+!readme.md
+
 # env files (can opt-in for committing if needed)
 .env*
 

@@ -6,6 +6,7 @@ import { FiShield, FiLock, FiZap, FiArrowRight } from "react-icons/fi";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import { useAuth } from "@/context/useAuth";
 import { useRouter } from "next/navigation";
+import TextLoop from "@/components/animations/TextLoop";
 
 export default function LandingPage() {
   const { isLoggedIn } = useAuth();
@@ -47,6 +48,8 @@ export default function LandingPage() {
           </div>
         </div>
       </nav>
+
+      <TextLoop/>
 
       {/* Hero */}
       <section className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
