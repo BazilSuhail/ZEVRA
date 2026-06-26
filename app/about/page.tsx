@@ -1,38 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "motion/react";
-import { FiShield, FiLock, FiGlobe, FiArrowLeft } from "react-icons/fi";
-import ThemeToggle from "@/components/theme/ThemeToggle";
+import { FiShield, FiLock, FiGlobe } from "react-icons/fi";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/home/Footer";
 
 export default function AboutPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      {/* Navbar */}
-      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-zinc-200 bg-white/80 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/80">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-xl font-bold">
-            Zevra
-          </Link>
-          <div className="flex items-center gap-6">
-            <Link href="/" className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
-              Home
-            </Link>
-            <ThemeToggle />
-            <Link href="/login">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-              >
-                Get Started
-              </motion.button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
-      {/* Content */}
+      {/* Hero */}
       <section className="flex min-h-screen flex-col items-center justify-center px-6 pt-20 text-center">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -49,6 +27,7 @@ export default function AboutPage() {
         </motion.div>
       </section>
 
+      {/* Mission */}
       <section className="px-6 pb-24">
         <div className="mx-auto max-w-4xl space-y-12">
           <div className="grid gap-12 md:grid-cols-2">
@@ -90,6 +69,8 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
+
+      <Footer />
     </div>
   );
 }

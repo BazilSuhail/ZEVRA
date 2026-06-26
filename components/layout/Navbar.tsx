@@ -1,52 +1,48 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import ThemeToggle from "../theme/ThemeToggle";
 import { motion } from "motion/react";
-import { FiShield } from "react-icons/fi";
-
-const links = [
-  { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
-];
+import { useAuth } from "@/context/useAuth";
+import { useRouter } from "next/navigation";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 export default function Navbar() {
-  const pathname = usePathname();
+  const { isLoggedIn } = useAuth();
+  const router = useRouter();
 
   return (
-    <motion.nav
-      initial={{ y: -100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-      className="fixed left-1/2 top-6 z-50 -translate-x-1/2"
-    >
-      <div className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white/80 px-2 py-2 shadow-lg backdrop-blur-md dark:border-zinc-700 dark:bg-zinc-900/80">
-        <Link href="/" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800">
-          <FiShield className="h-5 w-5 text-emerald-500" />
-          <span>Zevra</span>
+    <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-black/40 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <Link href="/" className="text-xl font-bold">
+          Zevra
         </Link>
-
-        <div className="h-5 w-px bg-zinc-200 dark:bg-zinc-700" />
-
-        {links.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-              pathname === link.href
-                ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-                : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-            }`}
-          >
-            {link.label}
+        <div className="flex items-center gap-6">
+          <Link href="/about" className="text-sm text-zinc-300 hover:text-white transition-colors">
+            About
           </Link>
-        ))}
-
-        <div className="h-5 w-px bg-zinc-200 dark:bg-zinc-700" />
-
-        <ThemeToggle />
+          <ThemeToggle />
+          {isLoggedIn ? (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => router.push("/chat")}
+              className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Open Chat
+            </motion.button>
+          ) : (
+            <Link href="/login">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Get Started
+              </motion.button>
+            </Link>
+          )}
+        </div>
       </div>
-    </motion.nav>
+    </nav>
   );
 }

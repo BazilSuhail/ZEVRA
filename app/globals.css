@@ -1,26 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@100;200;300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Backgrounds */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f4f6;
+  --bg-surface: #f9fafb;
+
+  /* Text */
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --text-white: #ffffff;
+
+  /* Brand - Zevra Purple */
+  --brand: #7c3aed;
+  --brand-hover: #6d28d9;
+  --brand-light: #a78bfa;
+
+  /* Status */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+
+  /* Message Bubbles */
+  --bubble-sent: #7c3aed;
+  --bubble-received: #f3f4f6;
+
+  /* Borders */
+  --border: #e5e7eb;
+
+  /* Font */
+  --font-urbanist: 'Urbanist', sans-serif;
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Backgrounds */
+  --bg-primary: #111827;
+  --bg-secondary: #1f2937;
+  --bg-surface: #374151;
+
+  /* Text */
+  --text-primary: #f9fafb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --text-white: #ffffff;
+
+  /* Brand */
+  --brand: #8b5cf6;
+  --brand-hover: #7c3aed;
+  --brand-light: #a78bfa;
+
+  /* Message Bubbles */
+  --bubble-sent: #7c3aed;
+  --bubble-received: #374151;
+
+  /* Borders */
+  --border: #374151;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Backgrounds */
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-surface: var(--bg-surface);
+
+  /* Text */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-white: var(--text-white);
+
+  /* Brand */
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-light: var(--brand-light);
+
+  /* Status */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+
+  /* Messages */
+  --color-bubble-sent: var(--bubble-sent);
+  --color-bubble-received: var(--bubble-received);
+
+  /* Borders */
+  --color-border: var(--border);
+
+  /* Fonts */
+  --font-sans: var(--font-urbanist);
+  --font-mono: 'Courier New', monospace;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+body { 
+  color: var(--text-primary);
+  font-family: var(--font-urbanist);
 }
