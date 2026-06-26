@@ -1,6 +1,6 @@
 "use client";
 
-import MoltenMetal from "@/components/home/MoltenMetal";
+import MoltenMetal from "@/components/animations/MoltenMetal";
 import Navbar from "@/components/layout/Navbar";
 import Hero from "@/components/home/Hero";
 import Features from "@/components/home/Features";

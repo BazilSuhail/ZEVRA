@@ -1,179 +1,229 @@
 import React from 'react';
 import { motion, Variants } from 'framer-motion';
-import { FiArrowUpRight } from 'react-icons/fi';
+import { FiArrowUpRight, FiShield, FiCpu, FiDatabase, FiLock, FiServer, FiTerminal } from 'react-icons/fi';
 
-// Path animation configuration for stroke drawing & infinite floating loop
-const pathVariants: Variants = {
-  hidden: { pathLength: 0, opacity: 0 },
+// Path drawing animation for SVGs on mount with infinite self-drawing loop
+const pathSelfDraw: Variants = {
+  hidden: {
+    pathLength: 0,
+    pathOffset: 0,
+    opacity: 0
+  },
   visible: {
-    pathLength: 1,
-    opacity: 1,
-    transition: {
-      pathLength: { duration: 2.5, ease: "easeInOut" },
-      opacity: { duration: 0.5 }
-    }
-  }
-};
-
-const floatVariants: Variants = {
-  animate: {
-    y: [0, -10, 0],
+    pathLength: [0, 1, 1, 0],
+    pathOffset: [0, 0, 1, 1],
+    opacity: [0, 1, 1, 0],
     transition: {
       duration: 4,
       repeat: Infinity,
-      ease: "easeInOut"
+      ease: "easeInOut",
+      times: [0, 0.50, 0.55, 1]
     }
   }
 };
 
-const pulseVariants: Variants = {
+// Subtle continuous floating motion
+const floatAnim: Variants = {
   animate: {
-    scale: [1, 1.05, 1],
-    opacity: [0.6, 1, 0.6],
+    y: [-6, 6, -6],
+    rotate: [0, 1.5, -1.5, 0],
     transition: {
-      duration: 3,
+      duration: 6,
       repeat: Infinity,
       ease: "easeInOut"
     }
   }
 };
 
-export const Hero: React.FC = () => {
+export const ZevraHero: React.FC = () => {
   return (
-    <div className="w-full text-white font-sans flex flex-col justify-between p-4 md:p-8">
-      {/* Main Grid Content */}
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-7xl mx-auto my-auto py-8">
+    <div className="h-screen mt-20 w-full text-white font-sans flex flex-col justify-between p-4 md:p-6 lg:p-8 overflow-hidden box-border">
 
-        {/* Left Column */}
-        <div className="lg:col-span-7 flex flex-col justify-between space-y-8">
+      {/* Main Container */}
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-7xl mx-auto my-auto items-stretch h-full max-h-[85vh]">
 
-          {/* Main Content */}
+        {/* Left Column (Content & Tech Badges Card) */}
+        <div className="lg:col-span-7 flex flex-col justify-between space-y-4 md:space-y-6">
+
+          {/* Main Headline & Server Purpose Intro */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="space-y-6 max-w-xl"
+            className="space-y-4 max-w-xl"
           >
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-none">
-              Find The <span className="text-[#ccff00]">Home</span><br />
-              Of Your Own<br />
-              Choice
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 text-indigo-300 text-xs font-semibold tracking-wider uppercase backdrop-blur-sm">
+              <FiServer className="w-3.5 h-3.5 text-indigo-400" />
+              <span>ZEVRA-Server Architecture</span>
+            </div>
+
+            <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-none text-slate-100">
+              High Performance <br />
+              <span className="text-indigo-500">Backend System</span> <br />
+              Infrastructure
             </h1>
 
-            <p className="text-gray-400 text-sm md:text-base leading-relaxed max-w-md">
-              Dive into a treasure trove of languages from around the globe. Uncover the intricate beauty of languages spoken by millions.
+            <p className="text-slate-400 text-xs md:text-sm lg:text-base leading-relaxed max-w-md">
+              Engineered for seamless microservice orchestration, secure data vault management, high-concurrency API routing, and real-time backend synchronization.
             </p>
 
-            <div className="flex items-center space-x-3 pt-2">
-              <button className="bg-[#ccff00] text-black font-semibold px-6 py-3 rounded-full hover:bg-lime-400 transition-colors">
-                Explore Now
+            {/* Action Buttons */}
+            <div className="flex items-center space-x-3 pt-1">
+              <button className="bg-indigo-600 text-white font-medium text-sm px-6 py-3 rounded-full hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/25 flex items-center gap-2">
+                <FiTerminal className="w-4 h-4" /> View Repository
               </button>
-              <button className="bg-[#ccff00] text-black p-3.5 rounded-full hover:bg-lime-400 transition-colors">
+              <button className="text-indigo-300 border border-indigo-500/30 p-3 rounded-full hover:bg-indigo-500/20 transition-colors">
                 <FiArrowUpRight className="w-5 h-5" />
               </button>
             </div>
           </motion.div>
 
-          {/* Bottom Left SVG Illustration Card */}
+          {/* Bottom Left Card - Server Network Nodes */}
           <motion.div
             initial="hidden"
             animate="visible"
-            className="rounded-3xl border border-white/10 p-6 h-64 md:h-72 w-full max-w-xl relative flex items-center justify-center overflow-hidden"
+            className="rounded-3xl border border-indigo-900/40 p-4 relative flex items-center justify-between overflow-hidden flex-1 min-h-[160px]"
           >
+            {/* Background SVG Grid & Connection Lines */}
             <motion.svg
-              variants={floatVariants}
+              variants={floatAnim}
               animate="animate"
-              viewBox="0 0 500 200"
-              className="w-full h-full stroke-[#ccff00] fill-none"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              viewBox="0 0 500 160"
+              className="w-full h-full stroke-indigo-500/40 fill-none absolute inset-0 pointer-events-none"
+              strokeWidth="1.5"
             >
-              {/* Animated Houses Vector */}
-              <motion.path
-                variants={pathVariants}
-                d="M30 140 L70 90 L110 140 Z M50 140 L50 115 L90 115 L90 140"
-              />
-              <motion.path
-                variants={pathVariants}
-                d="M130 140 L180 60 L230 140 Z M155 140 L155 95 L205 95 L205 140"
-              />
-              <motion.path
-                variants={pathVariants}
-                d="M250 140 L300 75 L350 140 Z M275 140 L275 100 L325 100 L325 140"
-              />
-              <motion.path
-                variants={pathVariants}
-                d="M370 140 L410 90 L450 140 Z M390 140 L390 115 L430 115 L430 140"
-              />
-              <motion.path
-                variants={pathVariants}
-                d="M10 145 H490"
-              />
+              <motion.path variants={pathSelfDraw} strokeDasharray="4 4" d="M 50 80 Q 150 20, 250 80 T 450 80" />
+              <motion.path variants={pathSelfDraw} d="M 80 120 L 150 40 L 350 40 L 420 120 Z" />
+              <motion.path variants={pathSelfDraw} d="M 250 20 L 250 140" stroke="#6366f1" strokeWidth="2" />
+              <motion.circle variants={pathSelfDraw} cx="250" cy="80" r="30" stroke="#818cf8" strokeWidth="2" />
             </motion.svg>
+
+            {/* Feature Modules Overlay */}
+            <div className="relative z-10 grid grid-cols-3 gap-3 w-full my-auto">
+              <div className="border border-indigo-800/40 rounded-2xl p-3 flex flex-col items-center text-center backdrop-blur-sm">
+                <FiShield className="w-5 h-5 text-indigo-400 mb-1" />
+                <span className="text-xs font-semibold text-slate-200">Vault Security</span>
+                <span className="text-[10px] text-slate-400">JWT & Encryption</span>
+              </div>
+              <div className="border border-indigo-500/50 rounded-2xl p-3 flex flex-col items-center text-center backdrop-blur-sm">
+                <FiCpu className="w-5 h-5 text-indigo-300 mb-1" />
+                <span className="text-xs font-semibold text-slate-200">Core Engine</span>
+                <span className="text-[10px] text-slate-400">Node / REST API</span>
+              </div>
+              <div className="border border-indigo-800/40 rounded-2xl p-3 flex flex-col items-center text-center backdrop-blur-sm">
+                <FiDatabase className="w-5 h-5 text-indigo-400 mb-1" />
+                <span className="text-xs font-semibold text-slate-200">Database</span>
+                <span className="text-[10px] text-slate-400">Optimized Queries</span>
+              </div>
+            </div>
           </motion.div>
+
         </div>
 
-        {/* Right Column (Animated Architectural SVG Card) */}
+        {/* Right Column (Continuous Self-Drawing Custom Animated SVG Shape Card) */}
         <motion.div
           initial="hidden"
           animate="visible"
-          className="lg:col-span-5 rounded-3xl border border-white/10 relative min-h-[500px] lg:min-h-[650px] flex flex-col justify-between p-8 overflow-hidden"
+          className="lg:col-span-5 rounded-3xl border border-indigo-900/50 relative flex flex-col justify-between p-6 md:p-8 overflow-hidden"
         >
-          {/* Continuous Drawing SVG Background Graphic */}
-          <div className="absolute inset-0 p-8 flex items-center justify-center">
-            <motion.svg
-              variants={pulseVariants}
-              animate="animate"
+          {/* Self-Drawing Polygon & Server Isometric Illustration */}
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <svg
               viewBox="0 0 400 500"
-              className="w-full h-full stroke-white/40 fill-none"
-              strokeWidth="1.5"
+              className="w-full h-full fill-none"
             >
+              {/* Outer Hexagonal Framework */}
+              <motion.polygon
+                variants={pathSelfDraw}
+                initial="hidden"
+                animate="visible"
+                points="200,30 360,120 360,380 200,470 40,380 40,120"
+                stroke="rgba(99, 102, 241, 0.6)"
+                strokeWidth="2.5"
+                strokeDasharray="800"
+              />
+
+              {/* Inner Hexagonal Shield */}
+              <motion.polygon
+                variants={pathSelfDraw}
+                initial="hidden"
+                animate="visible"
+                points="200,70 320,140 320,360 200,430 80,360 80,140"
+                stroke="#818cf8"
+                strokeWidth="2"
+                strokeDasharray="600"
+              />
+
+              {/* Server Layer Poly-Lines */}
               <motion.path
-                variants={pathVariants}
-                d="M50 450 V 100 L 200 30 L 350 100 V 450 Z"
+                variants={pathSelfDraw}
+                initial="hidden"
+                animate="visible"
+                stroke="#6366f1"
+                strokeWidth="2"
+                strokeDasharray="400"
+                d="M 120 170 L 200 210 L 280 170 L 200 130 Z"
               />
               <motion.path
-                variants={pathVariants}
-                d="M90 450 V 140 H 310 V 450"
+                variants={pathSelfDraw}
+                initial="hidden"
+                animate="visible"
+                stroke="#818cf8"
+                strokeWidth="2"
+                strokeDasharray="400"
+                d="M 120 230 L 200 270 L 280 230 L 200 190 Z"
               />
               <motion.path
-                variants={pathVariants}
-                stroke="#ccff00"
-                d="M130 200 H 170 V 250 H 130 Z M230 200 H 270 V 250 H 230 Z"
+                variants={pathSelfDraw}
+                initial="hidden"
+                animate="visible"
+                stroke="#a5b4fc"
+                strokeWidth="2"
+                strokeDasharray="400"
+                d="M 120 290 L 200 330 L 280 290 L 200 250 Z"
               />
+
+              {/* Isometric Pillar Lines */}
               <motion.path
-                variants={pathVariants}
-                stroke="#ccff00"
-                d="M130 300 H 170 V 350 H 130 Z M230 300 H 270 V 350 H 230 Z"
+                variants={pathSelfDraw}
+                initial="hidden"
+                animate="visible"
+                stroke="rgba(129, 140, 248, 0.7)"
+                strokeWidth="1.5"
+                strokeDasharray="300"
+                d="M 120 170 V 290 M 200 210 V 330 M 280 170 V 290"
               />
-              <motion.path
-                variants={pathVariants}
-                d="M170 450 V 390 H 230 V 450"
-              />
-            </motion.svg>
+            </svg>
+          </div>
+
+          {/* Top Pill Tag */}
+          <div className="relative z-10 flex justify-between items-center">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-indigo-400/30 text-xs text-indigo-200 backdrop-blur-md">
+              <FiLock className="w-3 h-3 text-indigo-400" /> Secure Protocol
+            </span>
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+            </span>
           </div>
 
           {/* Overlay Text Content */}
-          <div className="relative z-10 space-y-4 mt-auto">
-            <span className="inline-block px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-xs text-gray-200 tracking-wide">
-              Real Estate
-            </span>
-            <h2 className="text-3xl md:text-4xl font-semibold leading-tight text-white">
-              Buying and selling real estate properties.
+          <div className="relative z-10 space-y-3 mt-auto">
+            <h2 className="text-2xl md:text-3xl font-bold leading-tight text-slate-100">
+              Scalable, Secure & Modern Server Infrastructure
             </h2>
-            <p className="text-gray-300 text-sm max-w-sm">
-              We understand that every learner is unique.
+            <p className="text-slate-400 text-xs md:text-sm max-w-sm leading-relaxed">
+              Designed for high availability, low latency communications, microservice scalability, and robust security management.
             </p>
           </div>
         </motion.div>
 
       </main>
 
-      {/* Bottom Accent Line */}
-      <div className="w-full h-1 bg-[#ccff00] rounded-full mt-4" />
+      {/* Bottom Indigo Accent Line */}
+      <div className="w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent rounded-full mt-2" />
     </div>
   );
 };
 
-export default Hero;
+export default ZevraHero;
