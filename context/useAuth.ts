@@ -12,7 +12,7 @@ interface AuthState {
   keys: MyKeys | null;
   isLoggedIn: boolean;
 
-  login: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   loadSession: () => Promise<void>;
@@ -25,9 +25,7 @@ export const useAuth = create<AuthState>((set) => ({
   isLoggedIn: typeof window !== "undefined" && !!localStorage.getItem("access_token"),
 
   // ─── Login (SRP-6a) ─────────────────────────────────────────────────────
-  login: async (email, password) => {
-    const username = email.split("@")[0];
-
+  login: async (username, password) => {
     // Step 1: Generate client ephemeral
     const srpState = generateClientEphemeral();
     const A_hex = srpState.A.toString(16).padStart(512, "0");

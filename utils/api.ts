@@ -25,6 +25,9 @@ client.interceptors.response.use(
     const original = error.config;
     if (error.response?.status !== 401 || original._retry) throw error;
 
+    const isAuthRoute = /\/api\/auth\/(login|register|refresh)/.test(original.url);
+    if (isAuthRoute) throw error;
+
     if (refreshing) {
       return new Promise((resolve) => {
         queue.push(() => resolve(client(original)));
@@ -54,7 +57,7 @@ client.interceptors.response.use(
     } catch {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
-      window.location.href = "/login";
+      window.location.href = "/auth/login";
       throw error;
     } finally {
       refreshing = false;

@@ -2,21 +2,25 @@
 
 import { useAuth } from "@/context/useAuth";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import ChatList from "@/components/layout/ChatList";
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn, loadSession } = useAuth();
+  const { user, isLoggedIn, loadSession } = useAuth();
   const router = useRouter();
+  const bootstrapped = useRef(false);
 
   useEffect(() => {
+    if (isLoggedIn && user) return;
+    if (bootstrapped.current) return;
+    bootstrapped.current = true;
     loadSession();
-  }, [loadSession]);
+  }, [isLoggedIn, user, loadSession]);
 
   useEffect(() => {
     if (!isLoggedIn) {
-      router.push("/login");
+      router.push("/auth/login");
     }
   }, [isLoggedIn, router]);
 

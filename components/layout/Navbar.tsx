@@ -52,7 +52,7 @@ export default function Navbar() {
                 Open Chat
               </motion.button>
             ) : (
-              <Link href="/login">
+              <Link href="/auth/login">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -90,7 +90,7 @@ export default function Navbar() {
             Open Chat
           </motion.button>
         ) : (
-          <Link href="/login">
+          <Link href="/auth/login">
             <motion.button
               whileTap={{ scale: 0.95 }}
               className="rounded-full bg-indigo-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-500"

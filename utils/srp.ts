@@ -109,9 +109,12 @@ export async function computeM1(
   // u = SHA256(A, B)
   const u = bufToBigInt(await sha256(bigintToBuf(A), bigintToBuf(B)));
 
-  // S = (B - g^x)^(a + u*x) mod N
+  // k = SHA256(N, G)
+  const k = bufToBigInt(await sha256(bigintToBuf(N), bigintToBuf(G)));
+
+  // S = (B - k * g^x)^(a + u*x) mod N
   const gx = modPow(G, x, N);
-  let base = (B - gx) % N;
+  let base = (B - k * gx) % N;
   if (base < 0n) base += N;
   const S = modPow(base, a + u * x, N);
 
