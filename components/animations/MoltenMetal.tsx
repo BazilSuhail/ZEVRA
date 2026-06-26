@@ -1,5 +1,9 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
+
+/* ==========================================
+   1. MOLTEN METAL WEBGL SHADER UTILITIES
+   ========================================== */
 
 const hexToRgb = (hex: string): [number, number, number] => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -122,11 +126,10 @@ interface MoltenMetalProps {
   opacity?: number;
   className?: string;
 }
-
-const MoltenMetal = ({
-  color1 = '#5227FF',
-  color2 = '#FF9FFC',
-  color3 = '#FFFFFF',
+const MoltenMetal: React.FC<MoltenMetalProps> = ({
+  color1 = '#311075', // Deep Indigo Purple
+  color2 = '#6366f1', // Electric Indigo
+  color3 = '#a855f7', // Vivid Purple Glow
   speed = 0.35,
   scale = 4,
   detail = 3,
@@ -143,7 +146,7 @@ const MoltenMetal = ({
   mouseStrength = 0.3,
   opacity = 1.0,
   className = ''
-}: MoltenMetalProps) => {
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -283,7 +286,6 @@ const MoltenMetal = ({
       } catch {}
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

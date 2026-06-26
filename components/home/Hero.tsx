@@ -37,7 +37,7 @@ const floatAnim: Variants = {
 
 export const ZevraHero: React.FC = () => {
   return (
-    <div className="h-screen mt-20 w-full text-white font-sans flex flex-col justify-between p-4 md:p-6 lg:p-8 overflow-hidden box-border">
+    <div className="h-screen mt-12 w-full text-white font-sans flex flex-col justify-between p-4 md:p-6 lg:p-8 overflow-hidden box-border">
 
       {/* Main Container */}
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-7xl mx-auto my-auto items-stretch h-full max-h-[85vh]">
@@ -97,25 +97,7 @@ export const ZevraHero: React.FC = () => {
               <motion.path variants={pathSelfDraw} d="M 250 20 L 250 140" stroke="#6366f1" strokeWidth="2" />
               <motion.circle variants={pathSelfDraw} cx="250" cy="80" r="30" stroke="#818cf8" strokeWidth="2" />
             </motion.svg>
-
-            {/* Feature Modules Overlay */}
-            <div className="relative z-10 grid grid-cols-3 gap-3 w-full my-auto">
-              <div className="border border-indigo-800/40 rounded-2xl p-3 flex flex-col items-center text-center backdrop-blur-sm">
-                <FiShield className="w-5 h-5 text-indigo-400 mb-1" />
-                <span className="text-xs font-semibold text-slate-200">Vault Security</span>
-                <span className="text-[10px] text-slate-400">JWT & Encryption</span>
-              </div>
-              <div className="border border-indigo-500/50 rounded-2xl p-3 flex flex-col items-center text-center backdrop-blur-sm">
-                <FiCpu className="w-5 h-5 text-indigo-300 mb-1" />
-                <span className="text-xs font-semibold text-slate-200">Core Engine</span>
-                <span className="text-[10px] text-slate-400">Node / REST API</span>
-              </div>
-              <div className="border border-indigo-800/40 rounded-2xl p-3 flex flex-col items-center text-center backdrop-blur-sm">
-                <FiDatabase className="w-5 h-5 text-indigo-400 mb-1" />
-                <span className="text-xs font-semibold text-slate-200">Database</span>
-                <span className="text-[10px] text-slate-400">Optimized Queries</span>
-              </div>
-            </div>
+ 
           </motion.div>
 
         </div>

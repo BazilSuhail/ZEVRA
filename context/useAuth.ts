@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api } from "@/utils/api";
+import { generateClientEphemeral, computeM1, verifyM2 } from "@/utils/srp";
 import type { User, MyKeys } from "@/utils/types";
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -18,20 +19,38 @@ interface AuthState {
   setKeys: (keys: MyKeys) => void;
 }
 
-export const useAuth = create<AuthState>((set, get) => ({
+export const useAuth = create<AuthState>((set) => ({
   user: null,
   keys: null,
   isLoggedIn: typeof window !== "undefined" && !!localStorage.getItem("access_token"),
 
-  // ─── Login ────────────────────────────────────────────────────────────────
+  // ─── Login (SRP-6a) ─────────────────────────────────────────────────────
   login: async (email, password) => {
     const username = email.split("@")[0];
 
-    // Step 1: SRP start (will be replaced with real SRP later)
-    await api.post("/api/auth/login/start", { username });
+    // Step 1: Generate client ephemeral
+    const srpState = generateClientEphemeral();
+    const A_hex = srpState.A.toString(16).padStart(512, "0");
 
-    // Step 2: SRP finish
-    const res = await api.post<{
+    // Step 2: SRP start — get salt + B from server
+    const startRes = await api.post<{
+      userId: string;
+      username: string;
+      srpSalt: string;
+      B: string;
+    }>("/api/auth/login/start", { username });
+
+    // Step 3: Compute M1 proof
+    const { M1, K } = await computeM1(
+      password,
+      startRes.srpSalt,
+      startRes.B,
+      srpState,
+      username
+    );
+
+    // Step 4: SRP finish — send A + M1, get tokens + keys
+    const finishRes = await api.post<{
       user: { id: string; username: string; email: string };
       accessToken: string;
       refreshToken: string;
@@ -39,39 +58,38 @@ export const useAuth = create<AuthState>((set, get) => ({
       keys: MyKeys;
     }>("/api/auth/login/finish", {
       username,
-      A: "placeholder",
-      M1: "placeholder",
+      A: A_hex,
+      M1,
     });
 
-    localStorage.setItem("access_token", res.accessToken);
-    localStorage.setItem("refresh_token", res.refreshToken);
+    // Step 5: Verify server proof M2
+    const valid = await verifyM2(srpState.A, M1, K, finishRes.M2);
+    if (!valid) throw new Error("Server proof verification failed");
+
+    // Step 6: Store tokens
+    localStorage.setItem("access_token", finishRes.accessToken);
+    localStorage.setItem("refresh_token", finishRes.refreshToken);
 
     set({
-      user: res.user as User,
-      keys: res.keys,
+      user: finishRes.user as User,
+      keys: finishRes.keys,
       isLoggedIn: true,
     });
   },
 
   // ─── Register ─────────────────────────────────────────────────────────────
   register: async (username, email, password) => {
-    const res = await api.post<{ success: boolean; user: User }>(
+    await api.post<{ success: boolean; user: User }>(
       "/api/auth/register",
       { username, email, password }
     );
-
-    // Server returns user but no tokens — user must login after register
-    set({ user: res.user });
   },
 
   // ─── Logout ───────────────────────────────────────────────────────────────
   logout: () => {
-    // Fire-and-forget logout call
     api.post("/api/auth/logout").catch(() => {});
-
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
-
     set({ user: null, keys: null, isLoggedIn: false });
   },
 
@@ -84,21 +102,15 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
 
     try {
-      // Validate token + get user
       const user = await api.get<User>("/api/auth/me");
-
-      // Fetch own keys
       const keys = await api.get<MyKeys>("/keys/me");
-
       set({ user, keys, isLoggedIn: true });
     } catch {
-      // Token invalid or expired, interceptor handles refresh
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       set({ user: null, keys: null, isLoggedIn: false });
     }
   },
 
-  // ─── Update keys (after rotation) ─────────────────────────────────────────
   setKeys: (keys) => set({ keys }),
 }));
