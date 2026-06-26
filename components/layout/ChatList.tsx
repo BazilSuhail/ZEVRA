@@ -1,20 +1,95 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { FiUsers, FiSearch } from "react-icons/fi";
+import { useFetch } from "@/utils/query";
+import { api } from "@/utils/api";
+import { useAuth } from "@/context/useAuth";
+import type { Channel } from "@/utils/types";
 
-const channels = [
-  { id: "1", name: "Alice Johnson", lastMessage: "Hey, how are you?", unread: 2, time: "2m", online: true },
-  { id: "2", name: "Dev Team", lastMessage: "Sprint planning at 3pm", unread: 0, time: "15m", online: false, isGroup: true },
-  { id: "3", name: "Bob Smith", lastMessage: "Check out this link", unread: 5, time: "1h", online: true },
-  { id: "4", name: "Family Group", lastMessage: "Mom: Dinner tonight?", unread: 1, time: "3h", online: false, isGroup: true },
-  { id: "5", name: "Carol Davis", lastMessage: "Thanks for the help!", unread: 0, time: "1d", online: false },
-];
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d`;
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w`;
+}
 
 export default function ChatList() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const [search, setSearch] = useState("");
+  const [nameMap, setNameMap] = useState<Record<string, string>>({});
+
+  const { data: channels, isLoading } = useFetch<Channel[]>(
+    "channels",
+    () => api.get<Channel[]>("/channels"),
+    { staleTime: 30_000 }
+  );
+
+  // Resolve DM channel names: fetch other participant's username
+  useEffect(() => {
+    if (!channels || !user) return;
+
+    const dmUserIds = new Set<string>();
+    for (const ch of channels) {
+      if (ch.type === "DIRECT" && !ch.name) {
+        const otherId = ch.participantIds.find((id) => id !== user.id);
+        if (otherId && !nameMap[otherId]) dmUserIds.add(otherId);
+      }
+    }
+
+    if (dmUserIds.size === 0) return;
+
+    let cancelled = false;
+    const fetchAll = async () => {
+      const results = await Promise.allSettled(
+        [...dmUserIds].map((id) => api.get<{ id: string; username: string }>(`/api/users/${id}`))
+      );
+      if (cancelled) return;
+      const map: Record<string, string> = {};
+      results.forEach((r, i) => {
+        if (r.status === "fulfilled") {
+          const uid = [...dmUserIds][i];
+          map[uid] = r.value.username;
+        }
+      });
+      setNameMap((prev) => ({ ...prev, ...map }));
+    };
+    fetchAll();
+    return () => { cancelled = true; };
+  }, [channels, user]);
+
+  const displayName = (ch: Channel): string => {
+    if (ch.name) return ch.name;
+    if (ch.type === "DIRECT" && user) {
+      const otherId = ch.participantIds.find((id) => id !== user.id);
+      if (otherId && nameMap[otherId]) return nameMap[otherId];
+      return "Loading...";
+    }
+    return "Unknown";
+  };
+
+  const filtered = useMemo(() => {
+    if (!channels) return [];
+    if (!search.trim()) return channels;
+    const q = search.toLowerCase();
+    return channels.filter((ch) => {
+      const name = displayName(ch);
+      return name.toLowerCase().includes(q);
+    });
+  }, [channels, search, nameMap, user]);
 
   return (
     <div className="flex h-full w-[300px] flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -22,49 +97,85 @@ export default function ChatList() {
         <h2 className="mb-3 text-lg font-bold">Chats</h2>
         <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
           <FiSearch className="h-4 w-4 text-zinc-400" />
-          <input type="text" placeholder="Search chats..." className="flex-1 bg-transparent text-sm outline-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search chats..."
+            className="flex-1 bg-transparent text-sm outline-none"
+          />
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {channels.map((ch, i) => (
-          <motion.div
-            key={ch.id}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.03 }}
-          >
-            <Link
-              href={`/chat/channel/${ch.id}`}
-              className={`flex items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50 ${
-                pathname === `/chat/channel/${ch.id}` ? "bg-emerald-50 dark:bg-emerald-900/10" : ""
-              }`}
+        {isLoading && (
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 animate-pulse">
+                <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+                  <div className="h-2.5 w-36 rounded bg-zinc-100 dark:bg-zinc-800" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-zinc-400">
+            <FiUsers className="mb-3 h-8 w-8" />
+            <p className="text-sm">No conversations yet</p>
+            <p className="mt-1 text-xs text-zinc-300 dark:text-zinc-600">Start a new chat from the sidebar</p>
+          </div>
+        )}
+
+        {filtered.map((ch, i) => {
+          const name = displayName(ch);
+          const isGroup = ch.type === "GROUP";
+          const initial = isGroup ? null : name[0]?.toUpperCase();
+          const displayTime = timeAgo(ch.lastMessageAt);
+
+          return (
+            <motion.div
+              key={ch.id}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.03 }}
             >
-              <div className="relative">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                  {ch.isGroup ? <FiUsers className="h-4 w-4" /> : ch.name[0]}
+              <Link
+                href={`/chat/channel/${ch.id}`}
+                className={`flex items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50 ${
+                  pathname === `/chat/channel/${ch.id}` ? "bg-emerald-50 dark:bg-emerald-900/10" : ""
+                }`}
+              >
+                <div className="relative">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    {isGroup ? <FiUsers className="h-4 w-4" /> : initial}
+                  </div>
                 </div>
-                {!ch.isGroup && ch.online && (
-                  <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-zinc-900" />
-                )}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="truncate text-sm font-medium">{ch.name}</span>
-                  <span className="shrink-0 text-xs text-zinc-400">{ch.time}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="truncate text-xs text-zinc-500 dark:text-zinc-400">{ch.lastMessage}</span>
-                  {ch.unread > 0 && (
-                    <span className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
-                      {ch.unread}
+                <div className="flex-1 overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <span className="truncate text-sm font-medium">{name}</span>
+                    {displayTime && (
+                      <span className="shrink-0 text-xs text-zinc-400">{displayTime}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      {ch.lastMessageAt ? "Start a conversation" : ""}
                     </span>
-                  )}
+                    {(ch.unreadCount ?? 0) > 0 && (
+                      <span className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
+                        {ch.unreadCount}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Link>
-          </motion.div>
-        ))}
+              </Link>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );
