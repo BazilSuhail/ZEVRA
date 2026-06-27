@@ -5,7 +5,7 @@ import Link from "next/link";
 export default function Footer() {
   return (
     <footer className="relative z-10 border-t border-white/10 bg-black/50 px-6 py-12">
-      <div className="mx-auto max-w-5xl">
+      <div className="w-full">
         <div className="grid gap-8 md:grid-cols-4">
           <div>
             <h3 className="mb-4 text-lg font-bold">Zevra</h3>

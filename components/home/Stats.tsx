@@ -12,7 +12,7 @@ const stats = [
 export default function Stats() {
   return (
     <section className="relative z-10 px-6 py-20">
-      <div className="mx-auto max-w-4xl">
+      <div className="w-full">
         <div className="grid grid-cols-3 gap-6">
           {stats.map((s, i) => (
             <motion.div

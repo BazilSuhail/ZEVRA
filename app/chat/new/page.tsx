@@ -2,35 +2,36 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { FiSearch, FiUserPlus, FiUsers, FiArrowLeft, FiLoader, FiAlertCircle } from "react-icons/fi";
+import { FiSearch, FiUserPlus, FiUsers, FiArrowLeft, FiLoader, FiAlertCircle, FiX } from "react-icons/fi";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/utils/api";
 import { useAct } from "@/utils/query";
 import { useAuth } from "@/context/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import type { User, Channel } from "@/utils/types";
 
 export default function NewChatPage() {
   const router = useRouter();
   const { user: me } = useAuth();
+  const qc = useQueryClient();
   const searchParams = useSearchParams();
   const isGroup = searchParams.get("group") === "true";
 
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedUserMap, setSelectedUserMap] = useState<Record<string, User>>({});
   const [groupName, setGroupName] = useState("");
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 300);
     return () => clearTimeout(t);
   }, [query]);
 
-  // Fetch users on debounced query change
   useEffect(() => {
     if (!debouncedQuery.trim()) {
       setSearchResults([]);
@@ -43,7 +44,6 @@ export default function NewChatPage() {
       .get<User[]>(`/api/users/search?q=${encodeURIComponent(debouncedQuery)}&limit=20`)
       .then((data) => {
         if (!cancelled) {
-          // Exclude self
           setSearchResults(data.filter((u) => u.id !== me?.id));
         }
       })
@@ -56,18 +56,39 @@ export default function NewChatPage() {
     return () => { cancelled = true; };
   }, [debouncedQuery, me?.id]);
 
-  // Create channel mutation
   const createChannel = useAct<Channel, { type: "DIRECT" | "GROUP"; name?: string; participantIds: string[] }>(
     (vars) => api.post<Channel>("/channels", vars),
     {
       onSuccess: (channel) => {
+        qc.invalidateQueries({ queryKey: ["channels"] });
         router.push(`/chat/channel/${channel.id}`);
       },
     }
   );
 
-  const toggleUser = (id: string) => {
-    setSelectedUsers((prev) => (prev.includes(id) ? prev.filter((u) => u !== id) : [...prev, id]));
+  const toggleUser = (u: User) => {
+    setSelectedUsers((prev) => {
+      if (prev.includes(u.id)) {
+        const next = prev.filter((id) => id !== id);
+        setSelectedUserMap((m) => {
+          const copy = { ...m };
+          delete copy[u.id];
+          return copy;
+        });
+        return next;
+      }
+      setSelectedUserMap((m) => ({ ...m, [u.id]: u }));
+      return [...prev, u.id];
+    });
+  };
+
+  const removeUser = (id: string) => {
+    setSelectedUsers((prev) => prev.filter((uid) => uid !== id));
+    setSelectedUserMap((m) => {
+      const copy = { ...m };
+      delete copy[id];
+      return copy;
+    });
   };
 
   const handleStartDM = useCallback(
@@ -80,19 +101,16 @@ export default function NewChatPage() {
     [createChannel]
   );
 
+  const canCreateGroup = isGroup && selectedUsers.length > 0 && groupName.trim().length > 0;
+
   const handleCreateGroup = () => {
-    if (selectedUsers.length === 0) return;
+    if (!canCreateGroup) return;
     createChannel.mutate({
       type: "GROUP",
-      name: groupName.trim() || undefined,
+      name: groupName.trim(),
       participantIds: selectedUsers,
     });
   };
-
-  const displayName = (u: User) => u.username;
-  const selectedUserNames = searchResults
-    .filter((u) => selectedUsers.includes(u.id))
-    .reduce<Record<string, string>>((acc, u) => { acc[u.id] = u.username; return acc; }, {});
 
   return (
     <div className="flex flex-1 flex-col">
@@ -105,13 +123,13 @@ export default function NewChatPage() {
           <div>
             <h1 className="text-xl font-bold">{isGroup ? "New Group" : "New Chat"}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {isGroup ? "Create a group conversation" : "Find and start a conversation"}
+              {isGroup ? "Add members and name your group" : "Find and start a conversation"}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Group name input */}
+      {/* Group name — required */}
       {isGroup && (
         <div className="border-b border-zinc-200 bg-white px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center gap-3">
@@ -120,10 +138,18 @@ export default function NewChatPage() {
               type="text"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
-              placeholder="Group name..."
+              placeholder="Group name (required)..."
               className="flex-1 bg-transparent text-sm outline-none"
             />
+            {groupName && (
+              <button onClick={() => setGroupName("")} className="text-zinc-400 hover:text-zinc-600">
+                <FiX className="h-4 w-4" />
+              </button>
+            )}
           </div>
+          {!groupName.trim() && selectedUsers.length > 0 && (
+            <p className="mt-1 ml-8 text-xs text-amber-500">Group name is required</p>
+          )}
         </div>
       )}
 
@@ -142,6 +168,39 @@ export default function NewChatPage() {
         )}
       </AnimatePresence>
 
+      {/* Selected chips (group mode) */}
+      {isGroup && selectedUsers.length > 0 && (
+        <div className="border-b border-zinc-100 bg-white px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+          <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">{selectedUsers.length} selected</p>
+          <div className="flex flex-wrap gap-2">
+            {selectedUsers.map((uid) => {
+              const u = selectedUserMap[uid];
+              const name = u?.username || uid.slice(0, 8);
+              return (
+                <motion.span
+                  key={uid}
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  className="flex items-center gap-1.5 rounded-full bg-indigo-100 pl-2.5 pr-1.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
+                >
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-200 text-[10px] font-bold dark:bg-indigo-800">
+                    {name[0]?.toUpperCase()}
+                  </div>
+                  {name}
+                  <button
+                    onClick={() => removeUser(uid)}
+                    className="ml-0.5 rounded-full p-0.5 hover:bg-indigo-200 dark:hover:bg-indigo-800"
+                  >
+                    <FiX className="h-3 w-3" />
+                  </button>
+                </motion.span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Search */}
       <div className="px-6 py-4">
         <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800">
@@ -156,27 +215,6 @@ export default function NewChatPage() {
           {searching && <FiLoader className="h-4 w-4 animate-spin text-zinc-400" />}
         </div>
       </div>
-
-      {/* Selected chips (group mode) */}
-      {isGroup && selectedUsers.length > 0 && (
-        <div className="px-6 pb-3">
-          <div className="flex flex-wrap gap-2">
-            {selectedUsers.map((id) => (
-              <motion.span
-                key={id}
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="flex items-center gap-1 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-              >
-                {selectedUserNames[id] || id.slice(0, 8)}
-                <button onClick={() => toggleUser(id)} className="ml-1 hover:text-indigo-900">
-                  x
-                </button>
-              </motion.span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto px-6">
@@ -203,7 +241,7 @@ export default function NewChatPage() {
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 font-bold text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
-                    {displayName(u)[0]?.toUpperCase()}
+                    {u.username[0]?.toUpperCase()}
                   </div>
                   <div
                     className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-zinc-900 ${
@@ -212,7 +250,7 @@ export default function NewChatPage() {
                   />
                 </div>
                 <div>
-                  <p className="font-medium">{displayName(u)}</p>
+                  <p className="font-medium">{u.username}</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">{u.email}</p>
                 </div>
               </div>
@@ -221,14 +259,14 @@ export default function NewChatPage() {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => toggleUser(u.id)}
-                  className={`rounded-lg p-2 ${
+                  onClick={() => toggleUser(u)}
+                  className={`rounded-lg px-3 py-2 text-xs font-medium ${
                     selected
                       ? "bg-indigo-600 text-white"
-                      : "bg-indigo-600 text-white hover:bg-indigo-700"
+                      : "bg-indigo-100 text-indigo-600 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400"
                   }`}
                 >
-                  <FiUsers className="h-4 w-4" />
+                  {selected ? "Selected" : "Add"}
                 </motion.button>
               ) : (
                 <motion.button
@@ -251,14 +289,14 @@ export default function NewChatPage() {
       </div>
 
       {/* Create group button */}
-      {isGroup && selectedUsers.length > 0 && (
+      {isGroup && (
         <div className="border-t border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             onClick={handleCreateGroup}
-            disabled={createChannel.isPending}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            disabled={!canCreateGroup || createChannel.isPending}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
           >
             {createChannel.isPending ? (
               <>
@@ -269,6 +307,9 @@ export default function NewChatPage() {
               `Create Group (${selectedUsers.length} members)`
             )}
           </motion.button>
+          {isGroup && selectedUsers.length > 0 && !groupName.trim() && (
+            <p className="mt-2 text-center text-xs text-amber-500">Enter a group name to continue</p>
+          )}
         </div>
       )}
     </div>

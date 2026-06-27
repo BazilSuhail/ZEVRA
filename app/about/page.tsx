@@ -15,7 +15,7 @@ export default function AboutPage() {
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-3xl"
+          className="w-full"
         >
           <FiShield className="mx-auto mb-6 h-12 w-12 text-emerald-500" />
           <h1 className="mb-6 text-5xl font-bold">
@@ -29,7 +29,7 @@ export default function AboutPage() {
 
       {/* Mission */}
       <section className="px-6 pb-24">
-        <div className="mx-auto max-w-4xl space-y-12">
+        <div className="w-full space-y-12">
           <div className="grid gap-12 md:grid-cols-2">
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <h2 className="mb-4 text-2xl font-bold">Our Mission</h2>

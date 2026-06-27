@@ -8,7 +8,18 @@ import { FiUsers, FiSearch } from "react-icons/fi";
 import { useFetch } from "@/utils/query";
 import { api } from "@/utils/api";
 import { useAuth } from "@/context/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Channel } from "@/utils/types";
+
+function parseParticipantIds(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    const cleaned = raw.replace(/[{}"]/g, "");
+    if (!cleaned) return [];
+    return cleaned.split(",").filter(Boolean);
+  }
+  return [];
+}
 
 function timeAgo(dateStr: string | null): string {
   if (!dateStr) return "";
@@ -29,23 +40,42 @@ function timeAgo(dateStr: string | null): string {
 export default function ChatList() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
 
-  const { data: channels, isLoading } = useFetch<Channel[]>(
+  useEffect(() => {
+    qc.invalidateQueries({ queryKey: ["channels"] });
+  }, [qc]);
+
+  const { data: rawChannels, isLoading } = useFetch<Record<string, unknown>[]>(
     "channels",
-    () => api.get<Channel[]>("/channels"),
-    { staleTime: 30_000 }
+    () => api.get<Record<string, unknown>[]>("/channels"),
+    { staleTime: 0 }
   );
 
-  // Resolve DM channel names: fetch other participant's username
+  const { data: unreadMap } = useFetch<Record<string, number>>(
+    "unread",
+    () => api.get<Record<string, number>>("/messages/unread"),
+    { staleTime: 10_000 }
+  );
+
+  const channels = useMemo(() => {
+    if (!rawChannels) return undefined;
+    return rawChannels.map((ch) => ({
+      ...ch,
+      participantIds: parseParticipantIds(ch.participantIds),
+    })) as Channel[];
+  }, [rawChannels]);
+
   useEffect(() => {
     if (!channels || !user) return;
 
     const dmUserIds = new Set<string>();
     for (const ch of channels) {
       if (ch.type === "DIRECT" && !ch.name) {
-        const otherId = ch.participantIds.find((id) => id !== user.id);
+        const ids = parseParticipantIds(ch.participantIds);
+        const otherId = ids.find((id) => id !== user.id);
         if (otherId && !nameMap[otherId]) dmUserIds.add(otherId);
       }
     }
@@ -69,14 +99,15 @@ export default function ChatList() {
     };
     fetchAll();
     return () => { cancelled = true; };
-  }, [channels, user]);
+  }, [channels, user, nameMap]);
 
   const displayName = (ch: Channel): string => {
     if (ch.name) return ch.name;
     if (ch.type === "DIRECT" && user) {
-      const otherId = ch.participantIds.find((id) => id !== user.id);
+      const ids = parseParticipantIds(ch.participantIds);
+      const otherId = ids.find((id) => id !== user.id);
       if (otherId && nameMap[otherId]) return nameMap[otherId];
-      return "Loading...";
+      if (otherId) return otherId.slice(0, 8);
     }
     return "Unknown";
   };
@@ -146,11 +177,11 @@ export default function ChatList() {
               <Link
                 href={`/chat/channel/${ch.id}`}
                 className={`flex items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50 ${
-                  pathname === `/chat/channel/${ch.id}` ? "bg-emerald-50 dark:bg-emerald-900/10" : ""
+                  pathname === `/chat/channel/${ch.id}` ? "bg-indigo-50 dark:bg-indigo-900/10" : ""
                 }`}
               >
                 <div className="relative">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
                     {isGroup ? <FiUsers className="h-4 w-4" /> : initial}
                   </div>
                 </div>
@@ -163,11 +194,17 @@ export default function ChatList() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                      {ch.lastMessageAt ? "Start a conversation" : ""}
+                      {ch.lastMessageContent
+                        ? (() => {
+                            let preview = ch.lastMessageContent;
+                            try { preview = atob(ch.lastMessageContent); } catch {}
+                            return `${ch.lastMessageSenderId === user?.id ? "You: " : ch.lastMessageSenderName ? `${ch.lastMessageSenderName}: ` : ""}${preview}`;
+                          })()
+                        : ch.type === "DIRECT" ? "New conversation" : "No messages yet"}
                     </span>
-                    {(ch.unreadCount ?? 0) > 0 && (
-                      <span className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
-                        {ch.unreadCount}
+                    {(unreadMap?.[ch.id] ?? 0) > 0 && (
+                      <span className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white">
+                        {unreadMap[ch.id]}
                       </span>
                     )}
                   </div>

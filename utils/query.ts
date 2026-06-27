@@ -56,4 +56,4 @@ export function useAct<TData, TVariables = unknown>(
 
 // ─── Export raw api + request for direct use in pages ─────────────────────────
 
-export { api, request };
+export { api, request, useQueryClient };

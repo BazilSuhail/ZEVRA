@@ -7,7 +7,7 @@ import { FiArrowRight } from "react-icons/fi";
 export default function CTA() {
   return (
     <section className="relative z-10 px-6 py-24">
-      <div className="mx-auto max-w-3xl text-center">
+      <div className="w-full text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}

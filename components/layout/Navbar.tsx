@@ -15,7 +15,7 @@ export default function Navbar() {
     <>
       {/* Top Floating Navbar (Desktop & Mobile Brand Tile) */}
       <nav className="fixed left-0 right-0 top-0 z-50 p-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+        <div className="flex w-full items-center justify-between gap-4">
 
           {/* Left Tile: Brand / Logo with Blurred Indigo Glow */}
           <div className="rounded-3xl border border-indigo-500/20 bg-indigo-950/30 px-6 py-3 shadow-lg shadow-indigo-950/20 backdrop-blur-xl transition-all">

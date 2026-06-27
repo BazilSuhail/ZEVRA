@@ -44,12 +44,14 @@ export interface Message {
   id: string;
   channelId: string;
   senderId: string;
+  messageType: string;
   encryptedContent: string;
   contentIv: string;
   contentTag: string;
   signature: string;
   sequenceNumber: number;
   senderKeyEpoch?: number;
+  metadata: Record<string, unknown>;
   isDeleted: boolean;
   createdAt: string;
 }
@@ -73,6 +75,9 @@ export interface Channel {
   isArchived: boolean;
   lastMessageId: string | null;
   lastMessageAt: string | null;
+  lastMessageContent: string | null;
+  lastMessageSenderId: string | null;
+  lastMessageSenderName: string | null;
   participantIds: string[];
   createdAt: string;
   lastReadAt?: string;
@@ -124,8 +129,6 @@ export interface SenderKey {
 export interface AuditLog {
   id: string;
   action: string;
-  userId: string | null;
-  ipAddress: string | null;
   details: Record<string, unknown> | null;
   createdAt: string;
 }

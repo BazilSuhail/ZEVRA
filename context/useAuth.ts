@@ -100,9 +100,9 @@ export const useAuth = create<AuthState>((set) => ({
     }
 
     try {
-      const user = await api.get<User>("/api/auth/me");
+      const res = await api.get<{ success: boolean; user: User }>("/api/auth/me");
       const keys = await api.get<MyKeys>("/keys/me");
-      set({ user, keys, isLoggedIn: true });
+      set({ user: res.user, keys, isLoggedIn: true });
     } catch {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");

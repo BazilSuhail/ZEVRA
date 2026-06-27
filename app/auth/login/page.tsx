@@ -131,7 +131,7 @@ export default function LoginPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative lg:ml-20 z-10 flex flex-col text-left w-full max-w-lg mx-auto"
+          className="relative lg:ml-20 z-10 flex flex-col text-left w-full"
         >
           {/* Headline & Description Left-Aligned */}
           <div className="my-4 text-left">
@@ -193,7 +193,7 @@ export default function LoginPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-sm"
+          className="w-full"
         >
           {/* Pre-form Info Header Badge */}
           <div className="mb-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950/60 border border-purple-800/40 text-xs text-purple-300">

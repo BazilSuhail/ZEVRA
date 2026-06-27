@@ -40,7 +40,7 @@ export const ZevraHero: React.FC = () => {
     <div className="h-screen mt-12 w-full text-white font-sans flex flex-col justify-between p-4 md:p-6 lg:p-8 overflow-hidden box-border">
 
       {/* Main Container */}
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-7xl mx-auto my-auto items-stretch h-full max-h-[85vh]">
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full my-auto items-stretch h-full max-h-[85vh]">
 
         {/* Left Column (Content & Tech Badges Card) */}
         <div className="lg:col-span-7 flex flex-col justify-between space-y-4 md:space-y-6">
@@ -50,7 +50,7 @@ export const ZevraHero: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="space-y-4 max-w-xl"
+            className="space-y-4 w-full"
           >
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 text-indigo-300 text-xs font-semibold tracking-wider uppercase backdrop-blur-sm">
               <FiServer className="w-3.5 h-3.5 text-indigo-400" />
@@ -63,7 +63,7 @@ export const ZevraHero: React.FC = () => {
               Infrastructure
             </h1>
 
-            <p className="text-slate-400 text-xs md:text-sm lg:text-base leading-relaxed max-w-md">
+            <p className="text-slate-400 text-xs md:text-sm lg:text-base leading-relaxed w-full">
               Engineered for seamless microservice orchestration, secure data vault management, high-concurrency API routing, and real-time backend synchronization.
             </p>
 
@@ -194,7 +194,7 @@ export const ZevraHero: React.FC = () => {
             <h2 className="text-2xl md:text-3xl font-bold leading-tight text-slate-100">
               Scalable, Secure & Modern Server Infrastructure
             </h2>
-            <p className="text-slate-400 text-xs md:text-sm max-w-sm leading-relaxed">
+            <p className="text-slate-400 text-xs md:text-sm w-full leading-relaxed">
               Designed for high availability, low latency communications, microservice scalability, and robust security management.
             </p>
           </div>
