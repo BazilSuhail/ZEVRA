@@ -1,7 +1,5 @@
 // ─── Server Response Types ────────────────────────────────────────────────────
-// Matches the ZEVRA server API exactly.
 
-// Auth
 export interface User {
   id: string;
   username: string;
@@ -10,33 +8,6 @@ export interface User {
   createdAt: string;
   lastLoginAt?: string;
   keyVersion?: number;
-}
-
-export interface AuthRegisterResponse {
-  success: boolean;
-  user: User;
-}
-
-export interface AuthLoginStartResponse {
-  srpSalt: string;
-  B: string;
-}
-
-export interface AuthLoginFinishResponse {
-  user: { id: string; username: string; email: string };
-  accessToken: string;
-  refreshToken: string;
-  M2: string;
-  keys: {
-    publicKey: string;
-    publicKeySign: string;
-    encryptedPrivateKey: string;
-    keySalt: string;
-    encryptedPrivateKeySign: string;
-    keySaltSign: string;
-    argon2Params: Record<string, number>;
-    keyVersion: number;
-  };
 }
 
 // Messages
@@ -54,17 +25,8 @@ export interface Message {
   metadata: Record<string, unknown>;
   isDeleted: boolean;
   createdAt: string;
-}
-
-export interface SendMessageResponse {
-  id: string;
-  sequenceNumber: number;
-  createdAt: string;
-}
-
-export interface UnreadCount {
-  channelId: string;
-  count: number;
+  decryptedText?: string;
+  decryptFailed?: boolean;
 }
 
 // Channels
@@ -78,10 +40,12 @@ export interface Channel {
   lastMessageContent: string | null;
   lastMessageSenderId: string | null;
   lastMessageSenderName: string | null;
+  lastMessageIv?: string | null;
+  lastMessageTag?: string | null;
+  lastMessageSenderKeyEpoch?: number | null;
   participantIds: string[];
   createdAt: string;
-  lastReadAt?: string;
-  unreadCount?: number;
+  lastReadMessageId?: string | null;
 }
 
 export interface ChannelInfo extends Channel {
@@ -116,29 +80,10 @@ export interface PublicKeyEntry {
   keyVersion: number;
 }
 
-export interface SenderKey {
-  id: string;
-  ownerId: string;
-  encryptedKey: string;
-  keySignature: string;
-  epoch: number;
-  createdAt: string;
-}
-
 // Audit
 export interface AuditLog {
   id: string;
   action: string;
   details: Record<string, unknown> | null;
   createdAt: string;
-}
-
-// Generic success
-export interface SuccessResponse {
-  success: boolean;
-  message: string;
-}
-
-export interface ArchiveResponse {
-  isArchived: boolean;
 }

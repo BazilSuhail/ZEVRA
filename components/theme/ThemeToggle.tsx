@@ -1,11 +1,27 @@
 "use client";
 
-import { useTheme } from "./ThemeProvider";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FiSun, FiMoon } from "react-icons/fi";
 
 export default function ThemeToggle() {
-  const { theme, toggle } = useTheme();
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("theme") as "light" | "dark" | null;
+    const initial = saved ?? "dark";
+    setTheme(initial);
+    document.documentElement.classList.toggle("dark", initial === "dark");
+  }, []);
+
+  const toggle = () => {
+    setTheme((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      localStorage.setItem("theme", next);
+      document.documentElement.classList.toggle("dark", next === "dark");
+      return next;
+    });
+  };
 
   return (
     <button

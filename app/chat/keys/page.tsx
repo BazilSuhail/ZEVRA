@@ -16,10 +16,17 @@ import {
 import { useFetch, useAct, useQueryClient } from "@/utils/query";
 import { api } from "@/utils/api";
 import { useAuth } from "@/context/useAuth";
+import {
+  generateX25519KeyPair,
+  generateEd25519KeyPair,
+  deriveKEK,
+  sealPrivateKey,
+  toBase64,
+} from "@/utils/crypto";
 import type { MyKeys } from "@/utils/types";
 
 export default function KeysPage() {
-  const { keys, setKeys } = useAuth();
+  const { keys } = useAuth();
   const qc = useQueryClient();
   const [showRotate, setShowRotate] = useState(false);
   const [password, setPassword] = useState("");
@@ -34,7 +41,16 @@ export default function KeysPage() {
   const displayKeys = freshKeys || keys;
 
   const rotateMutation = useAct(
-    (vars: { password: string }) => api.post<{ success: boolean; message: string }>("/keys/rotate", vars),
+    (vars: {
+      password: string;
+      newPublicKey: string;
+      newEncryptedPrivateKey: string;
+      newKeySalt: string;
+      newPublicKeySign: string;
+      newEncryptedPrivateKeySign: string;
+      newKeySaltSign: string;
+      newKeyVersion: number;
+    }) => api.post<{ success: boolean; message: string }>("/keys/rotate", vars),
     {
       onSuccess: () => {
         setRotated(true);
@@ -46,9 +62,38 @@ export default function KeysPage() {
     }
   );
 
-  const handleRotate = () => {
+  const handleRotate = async () => {
     if (!password.trim()) return;
-    rotateMutation.mutate({ password: password.trim() });
+    if (!displayKeys) return;
+
+    try {
+      // Generate new X25519 key pair
+      const x25519Keys = generateX25519KeyPair();
+      // Generate new Ed25519 key pair
+      const ed25519Keys = generateEd25519KeyPair();
+      // Generate new salt
+      const newSalt = crypto.getRandomValues(new Uint8Array(16));
+      const newSaltSign = crypto.getRandomValues(new Uint8Array(16));
+      // Derive KEK from password + new salt
+      const newKek = deriveKEK(password.trim(), toBase64(newSalt));
+      const newKekSign = deriveKEK(password.trim(), toBase64(newSaltSign));
+      // Seal private keys
+      const sealedPrivateKey = await sealPrivateKey(x25519Keys.privateKey, newKek);
+      const sealedPrivateKeySign = await sealPrivateKey(ed25519Keys.privateKey, newKekSign);
+
+      rotateMutation.mutate({
+        password: password.trim(),
+        newPublicKey: toBase64(x25519Keys.publicKey),
+        newEncryptedPrivateKey: sealedPrivateKey,
+        newKeySalt: toBase64(newSalt),
+        newPublicKeySign: toBase64(ed25519Keys.publicKey),
+        newEncryptedPrivateKeySign: sealedPrivateKeySign,
+        newKeySaltSign: toBase64(newSaltSign),
+        newKeyVersion: (displayKeys.keyVersion ?? 0) + 1,
+      });
+    } catch (err) {
+      console.error("Key rotation failed:", err);
+    }
   };
 
   const fingerprint = displayKeys?.publicKey

@@ -1,17 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { FiArrowLeft, FiSun, FiMoon, FiBell, FiLock, FiTrash2 } from "react-icons/fi";
 import Link from "next/link";
-import { useTheme } from "@/components/theme/ThemeProvider";
 import { useAuth } from "@/context/useAuth";
-import { useAct } from "@/utils/query";
-import { api } from "@/utils/api";
 
 export default function SettingsPage() {
-  const { theme, setTheme } = useTheme();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
+  const [theme, setThemeState] = useState<"light" | "dark">("dark");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("theme") as "light" | "dark" | null;
+    const initial = saved ?? "dark";
+    setThemeState(initial);
+    document.documentElement.classList.toggle("dark", initial === "dark");
+  }, []);
+
+  const setTheme = (next: "light" | "dark") => {
+    setThemeState(next);
+    localStorage.setItem("theme", next);
+    document.documentElement.classList.toggle("dark", next === "dark");
+  };
+  const [notifications, setNotifications] = useState({
+    messages: true,
+    sound: true,
+    previews: false,
+  });
+
+  // Load from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("zevra_notifications");
+    if (saved) {
+      try { setNotifications(JSON.parse(saved)); } catch {}
+    }
+  }, []);
+
+  const toggleNotif = (key: keyof typeof notifications) => {
+    setNotifications((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem("zevra_notifications", JSON.stringify(next));
+      return next;
+    });
+  };
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -51,12 +82,23 @@ export default function SettingsPage() {
               <FiBell className="h-5 w-5 text-indigo-500" />Notifications
             </h2>
             <div className="space-y-3">
-              {["Message notifications", "Sound", "Show previews"].map((item) => (
-                <div key={item} className="flex items-center justify-between rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-800">
-                  <span className="text-sm font-medium">{item}</span>
-                  <div className="h-5 w-9 cursor-pointer rounded-full bg-indigo-600 p-0.5 transition-colors">
-                    <div className="h-4 w-4 rounded-full bg-white transition-transform translate-x-4" />
-                  </div>
+              {([
+                { key: "messages" as const, label: "Message notifications" },
+                { key: "sound" as const, label: "Sound" },
+                { key: "previews" as const, label: "Show previews" },
+              ]).map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between rounded-xl bg-zinc-50 px-4 py-3 dark:bg-zinc-800">
+                  <span className="text-sm font-medium">{label}</span>
+                  <button
+                    onClick={() => toggleNotif(key)}
+                    className={`h-5 w-9 cursor-pointer rounded-full p-0.5 transition-colors ${
+                      notifications[key] ? "bg-indigo-600" : "bg-zinc-300 dark:bg-zinc-600"
+                    }`}
+                  >
+                    <div className={`h-4 w-4 rounded-full bg-white transition-transform ${
+                      notifications[key] ? "translate-x-4" : "translate-x-0"
+                    }`} />
+                  </button>
                 </div>
               ))}
             </div>

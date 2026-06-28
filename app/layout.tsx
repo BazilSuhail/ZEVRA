@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import ClientProvider from "@/components/layout/ClientProvider";
+import Providers from "@/utils/providers";
 
 export const metadata: Metadata = {
   title: "Zevra",
@@ -8,5 +8,11 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  return <ClientProvider>{children}</ClientProvider>;
+  return (
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
 }

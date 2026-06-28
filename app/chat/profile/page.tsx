@@ -27,6 +27,13 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/useAuth";
 import { useAct, useQueryClient } from "@/utils/query";
 import { api } from "@/utils/api";
+import {
+  generateX25519KeyPair,
+  generateEd25519KeyPair,
+  deriveKEK,
+  sealPrivateKey,
+  toBase64,
+} from "@/utils/crypto";
 import type { MyKeys } from "@/utils/types";
 
 export default function ProfilePage() {
@@ -62,7 +69,16 @@ export default function ProfilePage() {
   );
 
   const rotateMutation = useAct(
-    (vars: { password: string }) => api.post<{ success: boolean; message: string }>("/keys/rotate", vars),
+    (vars: {
+      password: string;
+      newPublicKey: string;
+      newEncryptedPrivateKey: string;
+      newKeySalt: string;
+      newPublicKeySign: string;
+      newEncryptedPrivateKeySign: string;
+      newKeySaltSign: string;
+      newKeyVersion: number;
+    }) => api.post<{ success: boolean; message: string }>("/keys/rotate", vars),
     {
       onSuccess: () => {
         setRotated(true);
@@ -92,9 +108,32 @@ export default function ProfilePage() {
     router.push("/auth/login");
   };
 
-  const handleRotate = () => {
-    if (!rotatePassword.trim()) return;
-    rotateMutation.mutate({ password: rotatePassword.trim() });
+  const handleRotate = async () => {
+    if (!rotatePassword.trim() || !keys) return;
+
+    try {
+      const x25519Keys = generateX25519KeyPair();
+      const ed25519Keys = generateEd25519KeyPair();
+      const newSalt = crypto.getRandomValues(new Uint8Array(16));
+      const newSaltSign = crypto.getRandomValues(new Uint8Array(16));
+      const newKek = deriveKEK(rotatePassword.trim(), toBase64(newSalt));
+      const newKekSign = deriveKEK(rotatePassword.trim(), toBase64(newSaltSign));
+      const sealedPrivateKey = await sealPrivateKey(x25519Keys.privateKey, newKek);
+      const sealedPrivateKeySign = await sealPrivateKey(ed25519Keys.privateKey, newKekSign);
+
+      rotateMutation.mutate({
+        password: rotatePassword.trim(),
+        newPublicKey: toBase64(x25519Keys.publicKey),
+        newEncryptedPrivateKey: sealedPrivateKey,
+        newKeySalt: toBase64(newSalt),
+        newPublicKeySign: toBase64(ed25519Keys.publicKey),
+        newEncryptedPrivateKeySign: sealedPrivateKeySign,
+        newKeySaltSign: toBase64(newSaltSign),
+        newKeyVersion: (keys.keyVersion ?? 0) + 1,
+      });
+    } catch (err) {
+      console.error("Key rotation failed:", err);
+    }
   };
 
   const fingerprint = keys?.publicKey
