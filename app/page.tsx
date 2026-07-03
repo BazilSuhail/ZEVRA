@@ -38,7 +38,7 @@ export default function HomePage() {
       </div>
 
       {/* All content on top */}
-      <div className="relative z-10">
+      <div className="relative z-10 max-w-7xl mx-auto">
         <Navbar />
         <Hero />
         <Features />

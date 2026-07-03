@@ -15,10 +15,15 @@
   --text-muted: #9ca3af;
   --text-white: #ffffff;
 
-  /* Brand - Zevra Purple */
+  /* Brand — Purple (primary) */
   --brand: #7c3aed;
   --brand-hover: #6d28d9;
   --brand-light: #a78bfa;
+
+  /* Accent — Indigo (secondary, links, accents) */
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-light: #818cf8;
 
   /* Status */
   --success: #10b981;
@@ -31,6 +36,21 @@
 
   /* Borders */
   --border: #e5e7eb;
+
+  /* Auth (always dark, even in light mode) */
+  --auth-bg: #09090b;
+  --auth-surface: rgba(0, 0, 0, 0.6);
+  --auth-border: rgba(88, 28, 135, 0.4);
+  --auth-border-focus: #7c3aed;
+  --auth-text: #f9fafb;
+  --auth-text-muted: rgba(167, 139, 250, 0.7);
+  --auth-label: rgba(167, 139, 250, 0.9);
+  --auth-icon: #a78bfa;
+  --auth-glow-purple: rgba(147, 51, 234, 0.15);
+  --auth-glow-indigo: rgba(99, 102, 241, 0.3);
+  --auth-grid-dot: rgba(147, 51, 234, 0.35);
+  --auth-gradient-via: #09090b;
+  --auth-gradient-to: rgba(88, 28, 135, 0.8);
 
   /* Font */
   --font-urbanist: 'Urbanist', sans-serif;
@@ -52,6 +72,11 @@
   --brand: #8b5cf6;
   --brand-hover: #7c3aed;
   --brand-light: #a78bfa;
+
+  /* Accent */
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+  --accent-light: #a5b4fc;
 
   /* Message Bubbles */
   --bubble-sent: #7c3aed;
@@ -78,6 +103,11 @@
   --color-brand-hover: var(--brand-hover);
   --color-brand-light: var(--brand-light);
 
+  /* Accent */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-light: var(--accent-light);
+
   /* Status */
   --color-success: var(--success);
   --color-warning: var(--warning);
@@ -98,4 +128,14 @@
 body { 
   color: var(--text-primary);
   font-family: var(--font-urbanist);
+}
+
+/* ─── Auth Pages (always dark, independent of theme) ─────────────────────── */
+.auth-page {
+  color-scheme: dark;
+}
+
+.auth-page,
+.auth-page * {
+  color-scheme: dark;
 }

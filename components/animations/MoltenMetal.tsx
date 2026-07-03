@@ -321,7 +321,7 @@ const MoltenMetal: React.FC<MoltenMetalProps> = ({
     uc3[0] = c3[0]; uc3[1] = c3[1]; uc3[2] = c3[2];
   }, [color1, color2, color3, speed, scale, detail, glow, coreSize, swirl, fold, blackPoint, brightness, colorMode, grain, grainIntensity, mouseInteraction, mouseStrength, opacity]);
 
-  return <div ref={containerRef} className={`relative h-full w-full overflow-hidden ${className}`.trim()} />;
+  return <div ref={containerRef} className={`bg-zinc-950 relative h-full w-full overflow-hidden ${className}`.trim()} />;
 };
 
 export default MoltenMetal;
