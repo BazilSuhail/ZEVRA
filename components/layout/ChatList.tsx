@@ -375,9 +375,9 @@ export default function ChatList() {
 
           return (
             <motion.div key={ch.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}>
-              <Link href={`/chat/channel/${ch.id}`}
+              <Link href={ch.type === "DIRECT" ? `/chat/dm/${ch.id}` : `/chat/group/${ch.id}`}
                 className={`flex items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50 ${
-                  pathname === `/chat/channel/${ch.id}` ? "bg-indigo-50 dark:bg-indigo-900/10" : ""
+                  pathname === (ch.type === "DIRECT" ? `/chat/dm/${ch.id}` : `/chat/group/${ch.id}`) ? "bg-indigo-50 dark:bg-indigo-900/10" : ""
                 }`}>
                 <div className="relative">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${colorClass || "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"}`}>

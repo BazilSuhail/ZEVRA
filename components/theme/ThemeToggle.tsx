@@ -1,26 +1,58 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FiSun, FiMoon } from "react-icons/fi";
+import { useUiStore } from "@/context/stores";
+
+/** Apply theme to <html> */
+function applyTheme(theme: "light" | "dark") {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+}
+
+/** Read initial theme from localStorage (sync before paint) */
+function getInitialTheme(): "light" | "dark" {
+  if (typeof window === "undefined") return "dark";
+  const saved = localStorage.getItem("zevra-ui");
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed.state?.theme === "light" || parsed.state?.theme === "dark") {
+        return parsed.state.theme;
+      }
+    } catch {}
+  }
+  return "dark";
+}
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const theme = useUiStore((s) => s.theme);
+  const setTheme = useUiStore((s) => s.setTheme);
 
+  // Sync on mount + when theme changes
   useEffect(() => {
-    const saved = localStorage.getItem("theme") as "light" | "dark" | null;
-    const initial = saved ?? "dark";
-    setTheme(initial);
-    document.documentElement.classList.toggle("dark", initial === "dark");
-  }, []);
+    if (theme === 'light' || theme === 'dark') {
+      applyTheme(theme);
+    } else {
+      // system — check OS preference
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      applyTheme(mq.matches ? 'dark' : 'light');
+      const handler = (e: MediaQueryListEvent) => applyTheme(e.matches ? 'dark' : 'light');
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
+    }
+  }, [theme]);
+
+  // Read from localStorage on first mount (zustand hydrates async)
+  useEffect(() => {
+    const initial = getInitialTheme();
+    if (initial !== theme) {
+      setTheme(initial);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = () => {
-    setTheme((prev) => {
-      const next = prev === "light" ? "dark" : "light";
-      localStorage.setItem("theme", next);
-      document.documentElement.classList.toggle("dark", next === "dark");
-      return next;
-    });
+    setTheme(theme === "dark" ? "light" : "dark");
   };
 
   return (

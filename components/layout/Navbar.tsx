@@ -3,12 +3,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "motion/react";
-import { useAuth } from "@/context/useAuth";
+import { useAuthStore } from "@/context/stores";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 
 export default function Navbar() {
-  const { isLoggedIn } = useAuth();
+  const isLoggedIn = useAuthStore((s) => s.isAuthenticated);
   const router = useRouter();
 
   return (

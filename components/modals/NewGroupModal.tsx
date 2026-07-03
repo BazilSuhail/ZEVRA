@@ -62,7 +62,7 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
       onSuccess: (channel) => {
         qc.invalidateQueries({ queryKey: ["channels"] });
         onClose();
-        router.push(`/chat/channel/${channel.id}`);
+        router.push(`/chat/group/${channel.id}`);
       },
     }
   );

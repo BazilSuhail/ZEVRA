@@ -59,7 +59,7 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
       onSuccess: (channel) => {
         qc.invalidateQueries({ queryKey: ["channels"] });
         onClose();
-        router.push(`/chat/channel/${channel.id}`);
+        router.push(`/chat/dm/${channel.id}`);
       },
     }
   );
