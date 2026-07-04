@@ -55,7 +55,7 @@ export default function ProfilePage() {
         <h1 className="mt-1 text-2xl font-bold">Profile</h1>
       </header>
 
-      <div className="mx-auto w-full max-w-2xl p-6">
+      <div className="mx-auto w-full  p-6">
         {/* Avatar + Name */}
         <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center gap-4">

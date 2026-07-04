@@ -35,6 +35,8 @@ interface ChannelInfo {
   name: string | null;
   type: string;
   isArchived: boolean;
+  memberCount?: number;
+  members?: { id: string; username: string; status: string; role: string; joinedAt: string }[];
   createdAt: string;
 }
 
@@ -104,7 +106,6 @@ export default function DMChatPage() {
           setMessages(cached);
           setIdbReady(true);
           setLoading(false);
-          // Scroll to bottom after IDB load
           setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
           }, 0);
@@ -118,7 +119,6 @@ export default function DMChatPage() {
     (loadCursor?: string | null) => {
       if (!socket || !channelId) return;
 
-      // If no IDB cache, show loading spinner
       if (!idbReady && !loadCursor) {
         setLoading(true);
       }
@@ -172,27 +172,23 @@ export default function DMChatPage() {
           }
 
           if (loadCursor) {
-            // Loading older messages (scroll up) — prepend
             setMessages((prev) => {
               const existingIds = new Set(prev.map((m) => m.id));
               const newMsgs = serverMessages.filter((m) => !existingIds.has(m.id));
               return [...newMsgs, ...prev];
             });
           } else {
-            // Initial/background sync — merge with existing
             setMessages((prev) => {
               const map = new Map(prev.map((m) => [m.id, m]));
               for (const msg of serverMessages) {
-                map.set(msg.id, msg); // server wins on conflict
+                map.set(msg.id, msg);
               }
-              const merged = Array.from(map.values()).sort(
+              return Array.from(map.values()).sort(
                 (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
               );
-              return merged;
             });
           }
 
-          // Save all server messages to IDB
           await saveMessages(serverMessages);
 
           setHasMore(res.hasMore ?? false);
@@ -200,7 +196,6 @@ export default function DMChatPage() {
           setLoading(false);
           setSyncing(false);
 
-          // Scroll to bottom on initial sync
           if (!loadCursor) {
             setTimeout(() => {
               messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -212,10 +207,8 @@ export default function DMChatPage() {
     [socket, channelId, idbReady],
   );
 
-  // Trigger server sync after IDB load (or immediately if IDB empty)
   useEffect(() => {
     if (!channelId || !isAuthenticated) return;
-    // Small delay to let IDB render first
     const timer = setTimeout(() => fetchAndMerge(), idbReady ? 300 : 0);
     return () => clearTimeout(timer);
   }, [channelId, isAuthenticated, fetchAndMerge, idbReady]);
@@ -269,7 +262,6 @@ export default function DMChatPage() {
           updatedAt: msg.updatedAt || new Date().toISOString(),
         };
 
-        // Save to IDB (fire-and-forget)
         saveMessage(stored).catch(() => {});
 
         return [...prev, stored];
@@ -414,7 +406,8 @@ export default function DMChatPage() {
   };
 
   // ─── Derived ─────────────────────────────────────────────────────────
-  const displayName = channel?.name || "Unknown";
+  const otherMember = channel?.members?.find((m) => m.id !== me?.id);
+  const displayName = channel?.name || otherMember?.username || "Unknown";
   const initials = displayName
     .split(" ")
     .map((w) => w[0])
@@ -427,11 +420,27 @@ export default function DMChatPage() {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const bgPatternLight = `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23000000' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h10M12 32h6M12 44h10'/%3E%3Crect x='50' y='16' width='16' height='12' rx='2.5'/%3E%3Cpath d='M54 28v4a2.5 2.5 0 002.5 2.5h2.5l4 4v-4h1.5a2.5 2.5 0 002.5-2.5v-4'/%3E%3Ccircle cx='35' cy='50' r='6'/%3E%3Cpath d='M35 44v-2.5M35 56v-2.5M29 50h-2.5M41 50h-2.5'/%3E%3Cpath d='M62 46l-4 4M58 50l-4-4'/%3E%3Ccircle cx='20' cy='64' r='2.5'/%3E%3Ccircle cx='65' cy='10' r='2.5'/%3E%3Cpath d='M68 60l-2 2M70 58l-2-2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
+  const bgPatternDark = `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23ffffff' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h10M12 32h6M12 44h10'/%3E%3Crect x='50' y='16' width='16' height='12' rx='2.5'/%3E%3Cpath d='M54 28v4a2.5 2.5 0 002.5 2.5h2.5l4 4v-4h1.5a2.5 2.5 0 002.5-2.5v-4'/%3E%3Ccircle cx='35' cy='50' r='6'/%3E%3Cpath d='M35 44v-2.5M35 56v-2.5M29 50h-2.5M41 50h-2.5'/%3E%3Cpath d='M62 46l-4 4M58 50l-4-4'/%3E%3Ccircle cx='20' cy='64' r='2.5'/%3E%3Ccircle cx='65' cy='10' r='2.5'/%3E%3Cpath d='M68 60l-2 2M70 58l-2-2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
+  const [darkMode, setDarkMode] = useState(false);
+  useEffect(() => {
+    const check = () => setDarkMode(document.documentElement.classList.contains("dark"));
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+
   // ─── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-[#fbfcfd] dark:bg-zinc-950">
+    <div className="relative flex min-w-0 flex-1 flex-col bg-[#fbfcfd] dark:bg-zinc-950">
+      {/* Background pattern */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0 opacity-[0.1]"
+        style={{ backgroundImage: darkMode ? bgPatternDark : bgPatternLight, backgroundRepeat: "repeat" }}
+      />
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900 sm:px-7">
+      <header className="relative z-10 flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900 sm:px-7">
         <div className="flex items-center gap-3">
           <Link
             href="/chat"
@@ -439,15 +448,20 @@ export default function DMChatPage() {
           >
             <FiArrowLeft />
           </Link>
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700">
-            {initials}
-          </div>
-          <div>
-            <h2 className="text-sm font-bold">{displayName}</h2>
-            <p className="text-xs text-zinc-500">
-              {loading ? "Loading..." : "Online"}
-            </p>
-          </div>
+          <Link
+            href={`/chat/dm/${channelId}/info`}
+            className="flex items-center gap-3"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700">
+              {initials}
+            </div>
+            <div>
+              <h2 className="text-sm font-bold">{displayName}</h2>
+              <p className="text-xs text-zinc-500">
+                {loading ? "Loading..." : "Online"}
+              </p>
+            </div>
+          </Link>
         </div>
         <div className="flex items-center gap-2">
           {syncing && (
@@ -474,14 +488,33 @@ export default function DMChatPage() {
       <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-6 sm:px-10"
+        className="relative z-10 flex-1 overflow-y-auto px-4 py-6 sm:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="mx-auto max-w-3xl">
-          {/* Loading only shown when IDB is empty */}
+        <div>
+          {/* Loading skeleton */}
           {loading && messages.length === 0 && (
-            <div className="flex items-center justify-center py-12">
-              <FiLoader className="h-5 w-5 animate-spin text-indigo-500" />
-              <span className="ml-2 text-sm text-zinc-400">Loading messages...</span>
+            <div className="space-y-5 py-6">
+              {[1, 2, 3, 4, 5].map((i) => {
+                const isMine = i % 2 === 0;
+                return (
+                  <div key={i} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                    <div className={`flex items-end gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
+                      {!isMine && (
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700">
+                          <span className="h-3 w-3 animate-pulse rounded bg-zinc-300 dark:bg-zinc-600" />
+                        </div>
+                      )}
+                      <div>
+                        <div className={`h-3 w-12 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700 ${isMine ? "ml-auto mb-1" : "mb-1"}`} />
+                        <div
+                          className={`h-10 animate-pulse rounded-2xl ${isMine ? "rounded-br-sm bg-indigo-200 dark:bg-indigo-800" : "rounded-bl-sm bg-zinc-200 dark:bg-zinc-700"}`}
+                          style={{ width: `${70 + i * 25}px` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -499,7 +532,7 @@ export default function DMChatPage() {
           {/* Load more indicator */}
           {loading && messages.length > 0 && (
             <div className="flex justify-center py-4">
-              <FiLoader className="h-4 w-4 animate-spin text-zinc-400" />
+              <FiLoader className="h-4 w-4 animate-spin text-zinc-400 " />
             </div>
           )}
 
@@ -509,7 +542,7 @@ export default function DMChatPage() {
             return (
               <div
                 key={msg.id}
-                className={`mb-5 flex ${isMine ? "justify-end" : "justify-start"}`}
+                className={`mb-5   flex ${isMine ? "justify-end" : "justify-start"}`}
               >
                 <div className="max-w-[80%]">
                   <div
@@ -560,8 +593,8 @@ export default function DMChatPage() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-3xl">
+      <div className="relative z-10 border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="">
           <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
             <button className="p-2 text-zinc-400 hover:text-zinc-600">
               <FiPaperclip />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -38,6 +38,7 @@ interface ChannelInfo {
   type: string;
   isArchived: boolean;
   memberCount?: number;
+  members?: { id: string; username: string; status: string; role: string; joinedAt: string }[];
   createdAt: string;
 }
 
@@ -85,6 +86,18 @@ export default function GroupChatPage() {
   const socket = getSocket();
   const channelTyping = typingUsers[channelId] || new Set();
   const typingNames = Array.from(channelTyping).filter((uid) => uid !== me?.id);
+
+  const memberMap = useMemo(() => {
+    const map = new Map<string, { username: string; color: string }>();
+    const colors = [
+      "bg-rose-500", "bg-amber-500", "bg-emerald-500", "bg-cyan-500",
+      "bg-violet-500", "bg-pink-500", "bg-teal-500", "bg-orange-500",
+    ];
+    channel?.members?.forEach((m, i) => {
+      map.set(m.id, { username: m.username, color: colors[i % colors.length] });
+    });
+    return map;
+  }, [channel?.members]);
 
   // ─── Fetch channel info ──────────────────────────────────────────────
   useEffect(() => {
@@ -414,11 +427,27 @@ export default function GroupChatPage() {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const bgPatternLight = `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23000000' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h10M12 32h6M12 44h10'/%3E%3Crect x='50' y='16' width='16' height='12' rx='2.5'/%3E%3Cpath d='M54 28v4a2.5 2.5 0 002.5 2.5h2.5l4 4v-4h1.5a2.5 2.5 0 002.5-2.5v-4'/%3E%3Ccircle cx='35' cy='50' r='6'/%3E%3Cpath d='M35 44v-2.5M35 56v-2.5M29 50h-2.5M41 50h-2.5'/%3E%3Cpath d='M62 46l-4 4M58 50l-4-4'/%3E%3Ccircle cx='20' cy='64' r='2.5'/%3E%3Ccircle cx='65' cy='10' r='2.5'/%3E%3Cpath d='M68 60l-2 2M70 58l-2-2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
+  const bgPatternDark = `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23ffffff' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h10M12 32h6M12 44h10'/%3E%3Crect x='50' y='16' width='16' height='12' rx='2.5'/%3E%3Cpath d='M54 28v4a2.5 2.5 0 002.5 2.5h2.5l4 4v-4h1.5a2.5 2.5 0 002.5-2.5v-4'/%3E%3Ccircle cx='35' cy='50' r='6'/%3E%3Cpath d='M35 44v-2.5M35 56v-2.5M29 50h-2.5M41 50h-2.5'/%3E%3Cpath d='M62 46l-4 4M58 50l-4-4'/%3E%3Ccircle cx='20' cy='64' r='2.5'/%3E%3Ccircle cx='65' cy='10' r='2.5'/%3E%3Cpath d='M68 60l-2 2M70 58l-2-2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
+  const [darkMode, setDarkMode] = useState(false);
+  useEffect(() => {
+    const check = () => setDarkMode(document.documentElement.classList.contains("dark"));
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+
   // ─── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-[#fbfcfd] dark:bg-zinc-950">
+    <div className="relative flex min-w-0 flex-1 flex-col bg-[#fbfcfd] dark:bg-zinc-950">
+      {/* Background pattern */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0 opacity-[0.1]"
+        style={{ backgroundImage: darkMode ? bgPatternDark : bgPatternLight, backgroundRepeat: "repeat" }}
+      />
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900 sm:px-7">
+      <header className="relative z-10 flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900 sm:px-7">
         <div className="flex items-center gap-3">
           <Link
             href="/chat"
@@ -426,19 +455,24 @@ export default function GroupChatPage() {
           >
             <FiArrowLeft />
           </Link>
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
-            <FiUsers className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold">{displayName}</h2>
-            <p className="text-xs text-zinc-500">
-              {loading
-                ? "Loading..."
-                : channel?.memberCount
-                  ? `${channel.memberCount} members`
-                  : "Group"}
-            </p>
-          </div>
+          <Link
+            href={`/chat/group/${channelId}/info`}
+            className="flex items-center gap-3"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+              <FiUsers className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold">{displayName}</h2>
+              <p className="text-xs text-zinc-500">
+                {loading
+                  ? "Loading..."
+                  : channel?.memberCount
+                    ? `${channel.memberCount} members`
+                    : "Group"}
+              </p>
+            </div>
+          </Link>
         </div>
         <div className="flex items-center gap-2">
           {syncing && (
@@ -468,9 +502,9 @@ export default function GroupChatPage() {
       <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-6 sm:px-10"
+        className="relative z-10 flex-1 overflow-y-auto px-4 py-6 sm:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="mx-auto max-w-3xl">
+        <div>
           {/* Group welcome */}
           {!loading && messages.length === 0 && (
             <div className="py-12 text-center">
@@ -484,11 +518,33 @@ export default function GroupChatPage() {
             </div>
           )}
 
-          {/* Loading */}
+          {/* Loading skeleton */}
           {loading && messages.length === 0 && (
-            <div className="flex items-center justify-center py-12">
-              <FiLoader className="h-5 w-5 animate-spin text-indigo-500" />
-              <span className="ml-2 text-sm text-zinc-400">Loading messages...</span>
+            <div className="space-y-5 py-6">
+              {[1, 2, 3, 4, 5].map((i) => {
+                const isMine = i % 2 === 0;
+                return (
+                  <div key={i} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                    <div className={`flex items-end gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
+                      {!isMine && (
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700">
+                          <span className="h-3 w-3 animate-pulse rounded bg-zinc-300 dark:bg-zinc-600" />
+                        </div>
+                      )}
+                      <div>
+                        <div className={`mb-1 flex items-center gap-1.5 ${isMine ? "justify-end" : ""}`}>
+                          <div className="h-2 w-14 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                          <div className="h-2 w-8 animate-pulse rounded bg-zinc-200/50 dark:bg-zinc-700/50" />
+                        </div>
+                        <div
+                          className={`h-10 animate-pulse rounded-2xl ${isMine ? "rounded-br-sm bg-indigo-200 dark:bg-indigo-800" : "rounded-bl-sm bg-zinc-200 dark:bg-zinc-700"}`}
+                          style={{ width: `${70 + i * 25}px` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -509,11 +565,19 @@ export default function GroupChatPage() {
               >
                 <div className="max-w-[80%]">
                   {/* Sender name for group messages */}
-                  {!isMine && (
-                    <p className="mb-1 px-2 text-[11px] font-semibold text-zinc-400">
-                      {msg.senderId.slice(0, 8)}
-                    </p>
-                  )}
+                  {!isMine && (() => {
+                    const member = memberMap.get(msg.senderId);
+                    const name = member?.username || msg.senderId.slice(0, 8);
+                    const colorClass = member?.color || "bg-zinc-400";
+                    return (
+                      <div className="mb-1 flex items-center gap-2 px-1">
+                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${colorClass}`}>
+                          {name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-[11px] font-semibold text-zinc-500">{name}</span>
+                      </div>
+                    );
+                  })()}
                   <div
                     className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
                       isMine
@@ -562,8 +626,8 @@ export default function GroupChatPage() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-3xl">
+      <div className="relative z-10 border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <div>
           <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
             <button className="p-2 text-zinc-400 hover:text-zinc-600">
               <FiPaperclip />

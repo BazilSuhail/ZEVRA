@@ -21,7 +21,7 @@ export default function SettingsPage() {
         <h1 className="mt-1 text-2xl font-bold">Settings</h1>
       </header>
 
-      <div className="mx-auto w-full max-w-2xl space-y-4 p-6">
+      <div className="mx-auto w-full space-y-4 p-6">
         {/* Theme */}
         <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center gap-3 mb-4">

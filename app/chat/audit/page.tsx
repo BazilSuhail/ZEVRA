@@ -112,8 +112,8 @@ export default function AuditPage() {
     if (!isAuthenticated) return;
     setLoading(true);
     Promise.all([
-      api.get<{ success: boolean; logs: AuditEntry[] }>("/audit/logs?limit=50"),
-      api.get<{ success: boolean; events: AuditEntry[] }>("/audit/security"),
+      api.get<{ success: boolean; logs: AuditEntry[] }>("/api/audit/logs?limit=50"),
+      api.get<{ success: boolean; events: AuditEntry[] }>("/api/audit/security"),
     ])
       .then(([logsRes, secRes]) => {
         setLogs(logsRes.logs ?? []);
@@ -155,7 +155,7 @@ export default function AuditPage() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-2xl space-y-3 p-6">
+      <div className="mx-auto w-full space-y-3 p-6">
         {loading && (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (

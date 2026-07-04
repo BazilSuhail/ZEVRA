@@ -11,6 +11,7 @@ import { disconnectSocket } from "@/lib/socket";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import NewChatModal from "@/components/modals/NewChatModal";
 import NewGroupModal from "@/components/modals/NewGroupModal";
+import ConfirmLogoutModal from "@/components/modals/ConfirmLogoutModal";
 import {
   FiPlus,
   FiSettings,
@@ -33,6 +34,7 @@ export default function Sidebar() {
   const logout = useAuthStore((s) => s.logout);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -49,7 +51,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="flex h-full w-17 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 flex-col items-center py-3 ">
+      <aside className="flex h-full sm:w-15 lg:w-18 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 flex-col items-center py-3 ">
         {/* Top Brand Logo */}
         <div className="relative group mb-5">
           <Link
@@ -163,7 +165,7 @@ export default function Sidebar() {
 
           <div className="relative group">
             <button
-              onClick={handleLogout}
+              onClick={() => setLogoutModalOpen(true)}
               className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 dark:text-zinc-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-400"
             >
               <FiLogOut className="h-5 w-5" />
@@ -180,6 +182,7 @@ export default function Sidebar() {
 
       <NewChatModal open={chatModalOpen} onClose={() => setChatModalOpen(false)} />
       <NewGroupModal open={groupModalOpen} onClose={() => setGroupModalOpen(false)} />
+      <ConfirmLogoutModal open={logoutModalOpen} onClose={() => setLogoutModalOpen(false)} onConfirm={handleLogout} />
     </>
   );
 }

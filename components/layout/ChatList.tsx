@@ -157,7 +157,7 @@ export default function ChatList() {
   }, [rooms, search, activeTab, nameMap, user?.id]);
 
   return (
-    <div className="flex h-full max-w-220 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="flex h-full w-full sm:w-70 lg:w-80 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
         <h2 className="mb-3 text-lg font-bold">Chats</h2>
         <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">

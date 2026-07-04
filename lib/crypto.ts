@@ -23,6 +23,10 @@ function generateIV(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(CRYPTO.IV_LENGTH));
 }
 
+function toBuffer(data: Uint8Array): ArrayBuffer {
+  return data.buffer as ArrayBuffer;
+}
+
 // ─── AES-256-GCM Encrypt/Decrypt ────────────────────────────────────────────
 
 export interface EncryptedPayload {
@@ -39,7 +43,7 @@ export async function encrypt(
   const encoded = new TextEncoder().encode(plaintext);
 
   const encrypted = await crypto.subtle.encrypt(
-    { name: CRYPTO.ALGORITHM, iv, tagLength: CRYPTO.TAG_LENGTH * 8 },
+    { name: CRYPTO.ALGORITHM, iv: toBuffer(iv), tagLength: CRYPTO.TAG_LENGTH * 8 },
     key,
     encoded,
   );
@@ -70,7 +74,7 @@ export async function decrypt(
   combined.set(tagBytes, ciphertextBytes.length);
 
   const decrypted = await crypto.subtle.decrypt(
-    { name: CRYPTO.ALGORITHM, iv: ivBytes, tagLength: CRYPTO.TAG_LENGTH * 8 },
+    { name: CRYPTO.ALGORITHM, iv: toBuffer(ivBytes), tagLength: CRYPTO.TAG_LENGTH * 8 },
     key,
     combined,
   );
@@ -95,7 +99,7 @@ export async function deriveKey(
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt,
+      salt: toBuffer(salt),
       iterations: CRYPTO.PBKDF2_ITERATIONS,
       hash: CRYPTO.HASH,
     },
@@ -134,7 +138,7 @@ export async function exportPublicKey(key: CryptoKey): Promise<string> {
 export async function importPublicKey(base64: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     'raw',
-    base64ToUint8(base64),
+    toBuffer(base64ToUint8(base64)),
     { name: 'X25519' },
     true,
     ['deriveKey', 'deriveBits'],
@@ -172,7 +176,7 @@ export async function verify(
   return crypto.subtle.verify(
     'Ed25519',
     publicKey,
-    base64ToUint8(signatureBase64),
+    toBuffer(base64ToUint8(signatureBase64)),
     new TextEncoder().encode(data),
   );
 }
@@ -209,7 +213,7 @@ export async function unwrapKey(
 ): Promise<CryptoKey> {
   return crypto.subtle.unwrapKey(
     'raw',
-    base64ToUint8(wrappedBase64),
+    toBuffer(base64ToUint8(wrappedBase64)),
     masterKey,
     { name: 'AES-KW' },
     { name: CRYPTO.ALGORITHM, length: CRYPTO.KEY_LENGTH },

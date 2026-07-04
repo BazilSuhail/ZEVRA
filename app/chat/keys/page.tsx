@@ -74,7 +74,7 @@ export default function KeysPage() {
         <p className="mt-1 text-sm text-zinc-500">Your key identity and rotation history.</p>
       </header>
 
-      <div className="mx-auto w-full max-w-2xl space-y-4 p-6">
+      <div className="mx-auto w-full space-y-4 p-6">
         {loading && (
           <div className="flex items-center justify-center gap-2 py-12 text-sm text-zinc-400">
             <FiLoader className="h-4 w-4 animate-spin" />
