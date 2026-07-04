@@ -6,6 +6,7 @@ import { FiSearch, FiUserPlus, FiX, FiLoader, FiAlertCircle } from "react-icons/
 import { useRouter } from "next/navigation";
 import { api } from "@/utils/api";
 import { useAuthStore } from "@/context/stores";
+import { API } from "@/constants";
 
 interface User {
   id: string;
@@ -45,7 +46,7 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
     setSearching(true);
     setSearchError(null);
     api
-      .get<User[]>(`/api/users/search?q=${encodeURIComponent(debouncedQuery)}&limit=20`)
+      .get<User[]>(`${API.USERS.SEARCH}?q=${encodeURIComponent(debouncedQuery)}&limit=20`)
       .then((data) => {
         if (!cancelled) setSearchResults(data.filter((u) => u.id !== me?.id));
       })
@@ -63,7 +64,7 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
     setCreateError(null);
     try {
       const channel = await api.post<{ id: string; type: string }>(
-        "/api/channels",
+        API.CHANNELS.CREATE,
         { type: "DIRECT", participantIds: [userId] }
       );
       onClose();
