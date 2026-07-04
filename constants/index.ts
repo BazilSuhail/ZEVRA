@@ -2,56 +2,6 @@
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-export const API = {
-  AUTH: {
-    REGISTER: '/api/auth/register',
-    LOGIN_START: '/api/auth/login/start',
-    LOGIN_FINISH: '/api/auth/login/finish',
-    ME: '/api/auth/me',
-    LOGOUT: '/api/auth/logout',
-    REFRESH: '/api/auth/refresh',
-  },
-  MESSAGES: {
-    SEND: '/messages',
-    BY_CHANNEL: (channelId: string) => `/messages/channel/${channelId}`,
-    UNREAD: '/messages/unread',
-    MARK_READ: (channelId: string, messageId: string) =>
-      `/messages/channel/${channelId}/read/${messageId}`,
-    DELETE: (messageId: string) => `/messages/${messageId}`,
-  },
-  CHANNELS: {
-    LIST: '/channels',
-    CREATE: '/channels',
-    GET: (channelId: string) => `/channels/${channelId}`,
-    ADD_MEMBER: (channelId: string) => `/channels/${channelId}/members`,
-    REMOVE_MEMBER: (channelId: string, userId: string) =>
-      `/channels/${channelId}/members/${userId}`,
-    ARCHIVE: (channelId: string) => `/channels/${channelId}/archive`,
-  },
-  KEYS: {
-    MY_KEYS: '/keys/me',
-    ROTATE: '/keys/rotate',
-    PUBLIC: '/keys/public',
-    SENDER_UPLOAD: '/keys/sender-keys',
-    SENDER_GET: (groupId: string) => `/keys/sender-keys/${groupId}`,
-    SENDER_ALL: (groupId: string) => `/keys/sender-keys/${groupId}/all`,
-  },
-  USERS: {
-    ME: '/api/users/me',
-    SEARCH: '/api/users/search',
-    GET: (id: string) => `/api/users/${id}`,
-  },
-  REACTIONS: {
-    ADD: (messageId: string) => `/reactions/${messageId}`,
-    REMOVE: (messageId: string, emoji: string) =>
-      `/reactions/${messageId}/${encodeURIComponent(emoji)}`,
-    GET: (messageId: string) => `/reactions/${messageId}`,
-  },
-  UPLOADS: {
-    UPLOAD: '/uploads',
-  },
-} as const;
-
 // ─── Socket Events ──────────────────────────────────────────────────────────
 
 export const SOCKET_EVENTS = {

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/context/stores";
 import { api } from "@/utils";
-import { API } from "@/constants";
+
 import { disconnectSocket } from "@/lib/socket";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import NewChatModal from "@/components/modals/NewChatModal";
@@ -36,7 +36,7 @@ export default function Sidebar() {
 
   const handleLogout = async () => {
     try {
-      await api.post(API.AUTH.LOGOUT);
+      await api.post("/api/auth/logout");
     } catch {}
     disconnectSocket();
     logout();

@@ -7,7 +7,7 @@ import { FiUsers, FiSearch, FiMessageSquare } from "react-icons/fi";
 import { api } from "@/utils/api";
 import { useAuthStore } from "@/context/stores";
 import { useChatStore } from "@/context/stores/chat-store";
-import { API } from "@/constants";
+
 import type { StoredRoom } from "@/lib/db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ export default function ChatList() {
   useEffect(() => {
     if (loaded) return;
     api
-      .get<Record<string, unknown>[]>(API.CHANNELS.LIST)
+      .get<Record<string, unknown>[]>("/channels")
       .then((data) => {
         const mapped = data.map(mapRowToRoom);
         setRooms(mapped);

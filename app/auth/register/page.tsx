@@ -4,7 +4,6 @@ import { useState } from "react";
 import { motion, AnimatePresence, MotionConfig } from "motion/react";
 import { FiMail, FiLock, FiUser, FiLoader, FiAlertCircle, FiCheckCircle, FiShield, FiKey, FiZap } from "react-icons/fi";
 import { api } from "@/utils";
-import { API } from "@/constants";
 import Link from "next/link";
 import Image from "next/image";
 import { JellyBlobMascot } from "feral-blob";
@@ -64,7 +63,7 @@ export default function RegisterPage() {
     setLoading(true);
     setBlobMood("hmm");
     try {
-      await api.post(API.AUTH.REGISTER, {
+      await api.post("/api/auth/register", {
         username: username.trim(),
         email,
         password,
