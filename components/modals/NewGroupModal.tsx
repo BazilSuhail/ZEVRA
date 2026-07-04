@@ -5,10 +5,14 @@ import { motion, AnimatePresence } from "motion/react";
 import { FiSearch, FiUsers, FiX, FiLoader, FiAlertCircle } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { api } from "@/utils/api";
-import { useAct } from "@/utils/query";
-import { useAuth } from "@/context/useAuth";
-import { useQueryClient } from "@tanstack/react-query";
-import type { User, Channel } from "@/utils/types";
+import { useAuthStore } from "@/context/stores";
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  status?: string;
+}
 
 interface NewGroupModalProps {
   open: boolean;
@@ -17,8 +21,7 @@ interface NewGroupModalProps {
 
 export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
   const router = useRouter();
-  const { user: me } = useAuth();
-  const qc = useQueryClient();
+  const me = useAuthStore((s) => s.user);
 
   const [groupName, setGroupName] = useState("");
   const [query, setQuery] = useState("");
@@ -28,6 +31,8 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 300);
@@ -56,17 +61,6 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
     return () => { cancelled = true; };
   }, [debouncedQuery, me?.id]);
 
-  const createChannel = useAct<Channel, { type: "GROUP"; name: string; participantIds: string[] }>(
-    (vars) => api.post<Channel>("/channels", vars),
-    {
-      onSuccess: (channel) => {
-        qc.invalidateQueries({ queryKey: ["channels"] });
-        onClose();
-        router.push(`/chat/group/${channel.id}`);
-      },
-    }
-  );
-
   const toggleUser = (u: User) => {
     setSelectedUsers((prev) => {
       if (prev.includes(u.id)) {
@@ -94,13 +88,22 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
 
   const canCreateGroup = selectedUsers.length > 0 && groupName.trim().length > 0;
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (!canCreateGroup) return;
-    createChannel.mutate({
-      type: "GROUP",
-      name: groupName.trim(),
-      participantIds: selectedUsers,
-    });
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const channel = await api.post<{ id: string; type: string }>(
+        "/api/channels",
+        { type: "GROUP", name: groupName.trim(), participantIds: selectedUsers }
+      );
+      onClose();
+      router.push(`/chat/group/${channel.id}`);
+    } catch (err: any) {
+      setCreateError(err?.response?.data?.message || err?.message || "Failed to create group");
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleClose = () => {
@@ -110,6 +113,7 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
     setSelectedUserMap({});
     setSearchResults([]);
     setSearchError(null);
+    setCreateError(null);
     onClose();
   };
 
@@ -170,7 +174,7 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
 
             {/* Error */}
             <AnimatePresence>
-              {(createChannel.error || searchError) && (
+              {(createError || searchError) && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
@@ -178,7 +182,7 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
                   className="mx-5 mt-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
                 >
                   <FiAlertCircle className="h-4 w-4 shrink-0" />
-                  {createChannel.error?.message || searchError}
+                  {createError || searchError}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -294,10 +298,10 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
                 onClick={handleCreateGroup}
-                disabled={!canCreateGroup || createChannel.isPending}
+                disabled={!canCreateGroup || creating}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
               >
-                {createChannel.isPending ? (
+                {creating ? (
                   <>
                     <FiLoader className="h-4 w-4 animate-spin" />
                     Creating...

@@ -5,10 +5,14 @@ import { motion, AnimatePresence } from "motion/react";
 import { FiSearch, FiUserPlus, FiX, FiLoader, FiAlertCircle } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { api } from "@/utils/api";
-import { useAct } from "@/utils/query";
-import { useAuth } from "@/context/useAuth";
-import { useQueryClient } from "@tanstack/react-query";
-import type { User, Channel } from "@/utils/types";
+import { useAuthStore } from "@/context/stores";
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  status?: string;
+}
 
 interface NewChatModalProps {
   open: boolean;
@@ -17,14 +21,15 @@ interface NewChatModalProps {
 
 export default function NewChatModal({ open, onClose }: NewChatModalProps) {
   const router = useRouter();
-  const { user: me } = useAuth();
-  const qc = useQueryClient();
+  const me = useAuthStore((s) => s.user);
 
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 300);
@@ -53,25 +58,28 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
     return () => { cancelled = true; };
   }, [debouncedQuery, me?.id]);
 
-  const createChannel = useAct<Channel, { type: "DIRECT"; participantIds: string[] }>(
-    (vars) => api.post<Channel>("/channels", vars),
-    {
-      onSuccess: (channel) => {
-        qc.invalidateQueries({ queryKey: ["channels"] });
-        onClose();
-        router.push(`/chat/dm/${channel.id}`);
-      },
+  const handleStartDM = async (userId: string) => {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const channel = await api.post<{ id: string; type: string }>(
+        "/api/channels",
+        { type: "DIRECT", participantIds: [userId] }
+      );
+      onClose();
+      router.push(`/chat/dm/${channel.id}`);
+    } catch (err: any) {
+      setCreateError(err?.response?.data?.message || err?.message || "Failed to create chat");
+    } finally {
+      setCreating(false);
     }
-  );
-
-  const handleStartDM = (userId: string) => {
-    createChannel.mutate({ type: "DIRECT", participantIds: [userId] });
   };
 
   const handleClose = () => {
     setQuery("");
     setSearchResults([]);
     setSearchError(null);
+    setCreateError(null);
     onClose();
   };
 
@@ -110,7 +118,7 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
 
             {/* Error */}
             <AnimatePresence>
-              {(createChannel.error || searchError) && (
+              {(createError || searchError) && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
@@ -118,7 +126,7 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
                   className="mx-5 mt-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
                 >
                   <FiAlertCircle className="h-4 w-4 shrink-0" />
-                  {createChannel.error?.message || searchError}
+                  {createError || searchError}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -178,10 +186,10 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleStartDM(u.id)}
-                    disabled={createChannel.isPending}
+                    disabled={creating}
                     className="rounded-lg bg-indigo-600 p-2 text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {createChannel.isPending ? (
+                    {creating ? (
                       <FiLoader className="h-4 w-4 animate-spin" />
                     ) : (
                       <FiUserPlus className="h-4 w-4" />

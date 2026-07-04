@@ -1,25 +1,16 @@
 // ─── Utils Barrel ───────────────────────────────────────────────────────────
 //
 // Usage in components:
-//   import { api, socket, useApiQuery, useApiMutation, useSocketMutation } from '@/utils';
+//   import { api } from '@/utils';
 //   import { API, SOCKET_EVENTS } from '@/constants';
+//   import { socketEmit } from '@/utils/hooks';
 //
-//   const { data } = useApiQuery<User[]>({
-//     key: ['users', search],
-//     url: API.USERS.SEARCH,
-//     params: { q: search },
-//   });
-//
-//   const { mutate } = useApiMutation<CreateRes, CreateBody>({
-//     method: 'POST',
-//     url: API.CHANNELS.CREATE,
-//   });
+//   const data = await api.get<User[]>('/api/users/search', { q: 'john' });
+//   const channel = await api.post<Channel>('/api/channels', { type: 'DIRECT', participantIds: ['...'] });
+//   const result = await socketEmit<SendMessageResponse>(SOCKET_EVENTS.SEND_MESSAGE, { ... });
 //
 
 export { api, request, getAccessToken, getRefreshToken, setTokens, clearTokens, loadRefreshToken } from './api';
 export type { HttpMethod, RequestOptions } from './api';
 
 export { socket } from './socket';
-
-export { useApiQuery, useApiMutation, useSocketMutation } from './hooks';
-export type { UseApiQueryOptions, UseApiMutationOptions, UseSocketMutationOptions } from './hooks';

@@ -1,5 +1,6 @@
 "use client";
 
+import Sidebar from "@/components/layout/Sidebar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FiArchive, FiKey, FiMessageSquare, FiPlus, FiSettings, FiShield, FiUser, FiUsers } from "react-icons/fi";
@@ -23,16 +24,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f5f7f9] text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <aside className="hidden w-[74px] shrink-0 flex-col items-center border-r border-zinc-200 bg-white py-5 dark:border-zinc-800 dark:bg-zinc-900 md:flex">
-        <Link href="/chat" className="mb-8 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-lg font-black text-white shadow-lg shadow-indigo-200 dark:shadow-none">Z</Link>
-        <Link href="/chat" title="Chats" className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400"><FiMessageSquare /></Link>
-        <button title="New chat" className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800"><FiPlus /></button>
-        <div className="mt-auto flex flex-col items-center gap-2">
-          {navigation.map(([href, Icon, label]) => <Link key={href} href={href} title={label} className={`flex h-10 w-10 items-center justify-center rounded-xl ${pathname === href ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800" : "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}><Icon /></Link>)}
-          <div className="mt-3 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 font-bold text-amber-700">M</div>
-        </div>
-      </aside>
-
+     <Sidebar/>
       <section className="flex w-full max-w-[330px] shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="border-b border-zinc-200 px-5 pb-4 pt-6 dark:border-zinc-800">
           <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500">Zevra / demo</p><h1 className="mt-1 text-2xl font-bold tracking-tight">Messages</h1></div><button title="New conversation" className="rounded-lg bg-indigo-600 p-2.5 text-white hover:bg-indigo-700"><FiPlus /></button></div>

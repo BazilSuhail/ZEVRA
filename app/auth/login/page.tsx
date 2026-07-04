@@ -5,8 +5,9 @@ import { motion, AnimatePresence, MotionConfig } from "motion/react";
 import { FiLock, FiUser, FiLoader, FiAlertCircle, FiShield, FiKey, FiZap } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/context/stores";
-import { api } from "@/utils";
+import { api, setTokens } from "@/utils";
 import { API } from "@/constants";
+import { srpClient } from "@/utils/srp";
 import Link from "next/link";
 import Image from "next/image";
 import { JellyBlobMascot } from "feral-blob";
@@ -64,6 +65,7 @@ export default function LoginPage() {
     setLoading(true);
     setBlobMood("hmm");
     try {
+      // Step 1: SRP login start — get server public B + salt
       const startRes = await api.post<{
         success: boolean;
         userId: string;
@@ -74,20 +76,32 @@ export default function LoginPage() {
 
       if (!startRes.success) throw new Error("Login start failed");
 
+      // Step 2: Compute SRP client proof (A, M1, session key K)
+      const { A, M1 } = await srpClient({
+        username: username.trim(),
+        password,
+        srpSalt: startRes.srpSalt,
+        B: startRes.B,
+      });
+
+      // Step 3: Send A + M1 to server for verification
       const finishRes = await api.post<{
         success: boolean;
         user: { id: string; username: string; email: string };
         accessToken: string;
         refreshToken: string;
         keys: Record<string, unknown>;
+        M2: string;
       }>(API.AUTH.LOGIN_FINISH, {
         username: username.trim(),
-        A: "placeholder",
-        M1: "placeholder",
+        A,
+        M1,
       });
 
       if (!finishRes.success) throw new Error("Login failed");
 
+      // Step 4: Store auth state + sync token to axios
+      setTokens(finishRes.accessToken, finishRes.refreshToken);
       setAuth(finishRes.user, finishRes.accessToken);
       router.push("/chat");
     } catch (err: any) {

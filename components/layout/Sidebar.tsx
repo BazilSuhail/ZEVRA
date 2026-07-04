@@ -4,7 +4,10 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "@/context/useAuth";
+import { useAuthStore } from "@/context/stores";
+import { api } from "@/utils";
+import { API } from "@/constants";
+import { disconnectSocket } from "@/lib/socket";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import NewChatModal from "@/components/modals/NewChatModal";
 import NewGroupModal from "@/components/modals/NewGroupModal";
@@ -26,11 +29,16 @@ const bottomItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await api.post(API.AUTH.LOGOUT);
+    } catch {}
+    disconnectSocket();
     logout();
     router.push("/auth/login");
   };
