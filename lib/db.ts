@@ -115,8 +115,29 @@ export async function getChannelMessages(
   return database.messages
     .where('channelId')
     .equals(channelId)
-    .reverse()
     .sortBy('createdAt');
+}
+
+export async function getLatestMessageTimestamp(
+  channelId: string,
+): Promise<string | null> {
+  const database = getDB();
+  const last = await database.messages
+    .where('channelId')
+    .equals(channelId)
+    .last();
+  return last?.createdAt ?? null;
+}
+
+export async function getChannelMessagesAfter(
+  channelId: string,
+  afterTimestamp: string,
+): Promise<StoredMessage[]> {
+  const database = getDB();
+  return database.messages
+    .where('[channelId+createdAt]')
+    .between([channelId, afterTimestamp], [channelId, '\uffff'])
+    .toArray();
 }
 
 export async function updateMessageStatus(

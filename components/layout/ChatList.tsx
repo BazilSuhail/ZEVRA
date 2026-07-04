@@ -7,8 +7,7 @@ import { FiUsers, FiSearch, FiMessageSquare } from "react-icons/fi";
 import { api } from "@/utils/api";
 import { useAuthStore } from "@/context/stores";
 import { useChatStore } from "@/context/stores/chat-store";
-
-import type { StoredRoom } from "@/lib/db";
+import { getChatKey, decrypt } from "@/lib/crypto";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -43,17 +42,19 @@ function hashColor(str: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function mapRowToRoom(row: Record<string, unknown>): StoredRoom {
-  return {
-    id: row.id as string,
-    name: (row.name as string) || null,
-    type: (row.type as string) || "DIRECT",
-    lastMessageAt: (row.lastMessageAt ?? row.last_message_at) as string | null,
-    lastMessagePreview: (row.lastMessagePreview ?? row.last_message_content) as string | null,
-    unreadCount: 0,
-    isArchived: (row.isArchived ?? row.is_archived ?? false) as boolean,
-    updatedAt: (row.updatedAt ?? row.created_at ?? new Date().toISOString()) as string,
-  };
+interface InboxRow {
+  id: string;
+  name: string | null;
+  type: string;
+  isArchived: boolean;
+  lastMessageAt: string | null;
+  lastMessageContent: string | null;
+  lastMessageSenderId: string | null;
+  lastMessageSenderName: string | null;
+  lastMessageIv: string | null;
+  lastMessageTag: string | null;
+  lastMessageSenderKeyEpoch: number | null;
+  createdAt: string;
 }
 
 type FilterTab = "all" | "direct" | "group";
@@ -61,34 +62,88 @@ type FilterTab = "all" | "direct" | "group";
 export default function ChatList() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
-  const rooms = useChatStore((s) => s.rooms);
-  const setRooms = useChatStore((s) => s.setRooms);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const unreadCounts = useChatStore((s) => s.unreadCounts);
 
+  const [rooms, setRooms] = useState<InboxRow[]>([]);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [loaded, setLoaded] = useState(false);
+  const [nameMap, setNameMap] = useState<Record<string, string>>({});
+  const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
 
   // ─── Fetch channels on mount ──────────────────────────────────────────
   useEffect(() => {
-    if (loaded) return;
+    if (!isAuthenticated || loaded) return;
     api
-      .get<Record<string, unknown>[]>("/channels")
-      .then((data) => {
-        const mapped = data.map(mapRowToRoom);
-        setRooms(mapped);
+      .get<InboxRow[]>("/channels")
+      .then(async (data) => {
+        setRooms(data);
         setLoaded(true);
+
+        // Fetch names for DM channels where name is null
+        const dmWithoutName = data.filter(
+          (r) => r.type === "DIRECT" && !r.name && r.lastMessageSenderId,
+        );
+        if (dmWithoutName.length > 0) {
+          const entries = await Promise.allSettled(
+            dmWithoutName.map(async (r) => {
+              if (r.lastMessageSenderId !== user?.id && r.lastMessageSenderName) {
+                return { id: r.id, name: r.lastMessageSenderName };
+              }
+              try {
+                const channel = await api.get<any>(`/channels/${r.id}`);
+                // Channel response might have members or name
+                if (channel?.name) return { id: r.id, name: channel.name };
+              } catch {}
+              return { id: r.id, name: r.lastMessageSenderName || "Unknown" };
+            }),
+          );
+          const updates: Record<string, string> = {};
+          entries.forEach((e) => {
+            if (e.status === "fulfilled") updates[e.value.id] = e.value.name;
+          });
+          setNameMap(updates);
+        }
+
+        // Decrypt previews
+        for (const r of data) {
+          if (!r.lastMessageContent || !r.lastMessageIv || !r.lastMessageTag) continue;
+          const chatKey = getChatKey(r.id);
+          if (!chatKey) {
+            setPreviewMap((prev) => ({ ...prev, [r.id]: "[Encrypted message]" }));
+            continue;
+          }
+          try {
+            const pt = await decrypt(r.lastMessageContent, r.lastMessageIv, r.lastMessageTag, chatKey);
+            setPreviewMap((prev) => ({ ...prev, [r.id]: pt }));
+          } catch {
+            setPreviewMap((prev) => ({ ...prev, [r.id]: "[Encrypted message]" }));
+          }
+        }
       })
       .catch(() => setLoaded(true));
-  }, [loaded, setRooms]);
+  }, [isAuthenticated, loaded, user?.id]);
 
   // ─── Derived ──────────────────────────────────────────────────────────
-  const displayName = (room: StoredRoom): string => {
+  const displayName = (room: InboxRow): string => {
     if (room.name) return room.name;
+    if (room.type === "DIRECT") {
+      if (nameMap[room.id]) return nameMap[room.id];
+      if (room.lastMessageSenderId !== user?.id && room.lastMessageSenderName) return room.lastMessageSenderName;
+      if (room.lastMessageSenderId === user?.id) return "You";
+    }
     return "Unknown";
   };
 
-  const isGroup = (room: StoredRoom) => room.type === "GROUP";
+  const previewText = (room: InboxRow): string => {
+    const decrypted = previewMap[room.id];
+    if (decrypted) {
+      const prefix = room.type === "DIRECT" && room.lastMessageSenderId === user?.id ? "You: " : "";
+      return prefix + decrypted;
+    }
+    return room.type === "GROUP" ? "No messages yet" : "New conversation";
+  };
 
   const filtered = useMemo(() => {
     let result = rooms;
@@ -99,10 +154,10 @@ export default function ChatList() {
       result = result.filter((r) => displayName(r).toLowerCase().includes(q));
     }
     return result;
-  }, [rooms, search, activeTab]);
+  }, [rooms, search, activeTab, nameMap, user?.id]);
 
   return (
-    <div className="flex h-full max-w-[800px] flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="flex h-full max-w-220 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
       <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
         <h2 className="mb-3 text-lg font-bold">Chats</h2>
         <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
@@ -171,16 +226,17 @@ export default function ChatList() {
 
         {filtered.map((room) => {
           const name = displayName(room);
-          const group = isGroup(room);
-          const initial = group ? null : name[0]?.toUpperCase();
+          const isGroup = room.type === "GROUP";
+          const initial = isGroup ? null : name[0]?.toUpperCase();
           const displayTime = timeAgo(room.lastMessageAt);
-          const colorClass = group ? "" : hashColor(name);
-          const unread = unreadCounts[room.id] || room.unreadCount || 0;
+          const colorClass = isGroup ? "" : hashColor(name);
+          const unread = unreadCounts[room.id] || 0;
+          const preview = previewText(room);
 
           return (
             <Link
               key={room.id}
-              href={group ? `/chat/group/${room.id}` : `/chat/dm/${room.id}`}
+              href={isGroup ? `/chat/group/${room.id}` : `/chat/dm/${room.id}`}
               className={`flex items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50 ${
                 pathname.includes(room.id)
                   ? "bg-indigo-50 dark:bg-indigo-900/10"
@@ -194,7 +250,7 @@ export default function ChatList() {
                     "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
                   }`}
                 >
-                  {group ? <FiUsers className="h-4 w-4" /> : initial}
+                  {isGroup ? <FiUsers className="h-4 w-4" /> : initial}
                 </div>
               </div>
               <div className="flex-1 overflow-hidden">
@@ -206,9 +262,7 @@ export default function ChatList() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                    {room.lastMessagePreview || (
-                      group ? "No messages yet" : "New conversation"
-                    )}
+                    {preview}
                   </span>
                   {unread > 0 && (
                     <span className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white">

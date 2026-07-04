@@ -68,6 +68,9 @@ export function bindSocketHandlers(socket: AppSocket) {
 
   socket.on(SOCKET_EVENTS.MESSAGE_NEW, async (msg: any) => {
     try {
+      const msgId = msg.id || msg.messageId;
+      if (!msgId) return; // Skip if no valid ID
+
       let plaintext = msg.encryptedContent;
       const chatKey = getChatKey(msg.channelId);
       if (chatKey && msg.contentIv && msg.contentTag) {
@@ -75,7 +78,7 @@ export function bindSocketHandlers(socket: AppSocket) {
       }
 
       const message: StoredMessage = {
-        id: msg.id,
+        id: msgId,
         channelId: msg.channelId,
         senderId: msg.senderId,
         ciphertext: msg.encryptedContent,

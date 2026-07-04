@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { connectSocket, disconnectSocket, type AppSocket } from '@/lib/socket';
 import { bindSocketHandlers, unbindSocketHandlers } from '@/lib/socket-handlers';
 import { useAuthStore } from '@/context/stores/auth-store';
@@ -33,38 +33,46 @@ function destroySocket() {
   }
 }
 
-// ─── Auth Init (runs once on mount) ─────────────────────────────────────────
+// ─── Auth Init ──────────────────────────────────────────────────────────────
 
 function useAuthInit() {
   const setLoading = useAuthStore((s) => s.setLoading);
-
-  useEffect(() => {
-    const accessToken = useAuthStore.getState().accessToken;
-    const user = useAuthStore.getState().user;
-
-    if (accessToken && user) {
-      const refreshToken = loadRefreshToken();
-      if (refreshToken) setTokens(accessToken, refreshToken);
-      initSocket(accessToken);
-    }
-    setLoading(false);
-
-    return () => {
-      destroySocket();
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Watch for auth changes — connect/disconnect socket
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const initialized = useRef(false);
 
   useEffect(() => {
+    // First mount: restore from persisted state
+    if (!initialized.current) {
+      initialized.current = true;
+      const token = useAuthStore.getState().accessToken;
+      const user = useAuthStore.getState().user;
+
+      if (token && user) {
+        const refreshToken = loadRefreshToken();
+        if (refreshToken) setTokens(token, refreshToken);
+        initSocket(token);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Subsequent auth changes: connect/disconnect
     if (isAuthenticated && accessToken) {
+      const refreshToken = loadRefreshToken();
+      if (refreshToken) setTokens(accessToken, refreshToken);
       initSocket(accessToken);
     } else {
       destroySocket();
     }
-  }, [isAuthenticated, accessToken]);
+  }, [isAuthenticated, accessToken, setLoading]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      destroySocket();
+    };
+  }, []);
 }
 
 // ─── Socket Connection Watcher ──────────────────────────────────────────────
