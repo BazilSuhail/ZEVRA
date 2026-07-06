@@ -22,7 +22,6 @@ export default function SettingsPage() {
       </header>
 
       <div className="mx-auto w-full space-y-4 p-6">
-        {/* Theme */}
         <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center gap-3 mb-4">
             {theme === "dark" ? (
@@ -60,7 +59,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Notifications placeholder */}
         <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

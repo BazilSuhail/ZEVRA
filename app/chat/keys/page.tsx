@@ -91,7 +91,6 @@ export default function KeysPage() {
 
         {!loading && !error && (
           <>
-            {/* Active key version */}
             <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex items-center gap-3">
                 <FiKey className="text-indigo-600" />
@@ -111,7 +110,6 @@ export default function KeysPage() {
               )}
             </div>
 
-            {/* Public identity */}
             <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="mb-4 flex items-center gap-3">
                 <FiShield className="text-emerald-600" />
@@ -129,7 +127,6 @@ export default function KeysPage() {
               </button>
             </div>
 
-            {/* Rotate button */}
             <button
               onClick={handleRotate}
               disabled={rotating}
@@ -153,7 +150,6 @@ export default function KeysPage() {
               )}
             </button>
 
-            {/* Key history */}
             {keys.length > 1 && (
               <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
                 <p className="mb-3 font-semibold">Key history</p>

@@ -5,7 +5,7 @@ import { connectSocket, disconnectSocket, type AppSocket } from '@/lib/socket';
 import { bindSocketHandlers, unbindSocketHandlers } from '@/lib/socket-handlers';
 import { useAuthStore } from '@/context/stores/auth-store';
 import { useSocketStore } from '@/context/stores/socket-store';
-import { setTokens, loadRefreshToken } from '@/utils/api';
+import { setTokens, loadRefreshToken, api } from '@/utils/api';
 
 // ─── Socket Manager ─────────────────────────────────────────────────────────
 
@@ -37,42 +37,59 @@ function destroySocket() {
 
 function useAuthInit() {
   const setLoading = useAuthStore((s) => s.setLoading);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const logout = useAuthStore((s) => s.logout);
+  const setUser = useAuthStore((s) => s.setUser);
+  const setTokenValidated = useAuthStore((s) => s.setTokenValidated);
   const initialized = useRef(false);
+  const [hydrated, setHydrated] = useState(false);
 
+  // Wait for Zustand hydration
   useEffect(() => {
-    // First mount: restore from persisted state
-    if (!initialized.current) {
-      initialized.current = true;
-      const token = useAuthStore.getState().accessToken;
-      const user = useAuthStore.getState().user;
-
-      if (token && user) {
-        const refreshToken = loadRefreshToken();
-        if (refreshToken) setTokens(token, refreshToken);
-        initSocket(token);
-      }
-      setLoading(false);
-      return;
-    }
-
-    // Subsequent auth changes: connect/disconnect
-    if (isAuthenticated && accessToken) {
-      const refreshToken = loadRefreshToken();
-      if (refreshToken) setTokens(accessToken, refreshToken);
-      initSocket(accessToken);
-    } else {
-      destroySocket();
-    }
-  }, [isAuthenticated, accessToken, setLoading]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      destroySocket();
-    };
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true));
+    useAuthStore.persist.rehydrate();
+    if (useAuthStore.persist.hasHydrated()) setHydrated(true);
+    return unsub;
   }, []);
+
+  // After hydration: validate token or finish loading
+  useEffect(() => {
+    if (!hydrated || initialized.current) return;
+    initialized.current = true;
+
+    const token = useAuthStore.getState().accessToken;
+    const user = useAuthStore.getState().user;
+
+    if (token && user) {
+      // Sync tokens to module scope
+      const refreshToken = loadRefreshToken();
+      if (refreshToken) setTokens(token, refreshToken);
+
+      // Validate with server — if 401, interceptor refreshes or redirects
+      api.get<any>('/api/auth/me')
+        .then((res) => {
+          if (res?.user?.id) {
+            setUser(res.user);
+            initSocket(token);
+          } else {
+            logout();
+            window.location.href = '/auth/login';
+          }
+        })
+        .catch(() => {
+          const freshToken = useAuthStore.getState().accessToken;
+          if (freshToken) {
+            initSocket(freshToken);
+          }
+        })
+        .finally(() => {
+          setTokenValidated(true);
+          setLoading(false);
+        });
+    } else {
+      setTokenValidated(true);
+      setLoading(false);
+    }
+  }, [hydrated, setLoading, logout, setUser, setTokenValidated]);
 }
 
 // ─── Socket Connection Watcher ──────────────────────────────────────────────
@@ -98,33 +115,5 @@ export function Providers({ children }: { children: ReactNode }) {
   useAuthInit();
   useSocketConnection();
 
-  return <>{children}</>;
-}
-
-// ─── Hydration Gate ─────────────────────────────────────────────────────────
-
-export function useHydration() {
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    const unsub = useAuthStore.persist.onFinishHydration(() => {
-      setHydrated(true);
-    });
-
-    useAuthStore.persist.rehydrate();
-
-    if (useAuthStore.persist.hasHydrated()) {
-      setHydrated(true);
-    }
-
-    return unsub;
-  }, []);
-
-  return hydrated;
-}
-
-export function HydrationGate({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
-  const hydrated = useHydration();
-  if (!hydrated) return fallback ?? null;
   return <>{children}</>;
 }

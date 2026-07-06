@@ -17,6 +17,7 @@ import { api } from "@/utils";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
+
 const JellyBlobMascot = dynamic(
   () => import("feral-blob").then((mod) => mod.JellyBlobMascot),
   { ssr: false },
@@ -24,7 +25,13 @@ const JellyBlobMascot = dynamic(
 import "feral-blob/blob.css";
 
 type BlobMood =
-  "neutral" | "happy" | "sad" | "angry" | "hmm" | "sideEye" | "password";
+  | "neutral"
+  | "happy"
+  | "sad"
+  | "angry"
+  | "hmm"
+  | "sideEye"
+  | "password";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");
@@ -100,7 +107,6 @@ export default function RegisterPage() {
 
   return (
     <div className="auth-page relative h-screen w-screen overflow-hidden text-slate-100 flex flex-col justify-between p-4 sm:p-6">
-      {/* Full-screen background */}
       <div className="absolute inset-0 -z-10 bg-zinc-950">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-950 to-purple-950/80" />
         <div
@@ -115,7 +121,6 @@ export default function RegisterPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-80 w-80 rounded-full bg-purple-950/20 blur-3xl" />
       </div>
 
-      {/* Top nav */}
       <header className="z-30 flex items-center justify-between w-full max-w-6xl mx-auto shrink-0">
         <Link href="/" className="flex items-center gap-2 group">
           <Image
@@ -131,10 +136,8 @@ export default function RegisterPage() {
         </Link>
       </header>
 
-      {/* Main Content Viewport Area */}
       <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-center justify-center overflow-hidden">
         <div className="grid w-full grid-cols-1 items-center gap-6 lg:grid-cols-2 lg:gap-12 my-auto">
-          {/* ─── Left: Form ──────────────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -276,10 +279,8 @@ export default function RegisterPage() {
             )}
           </motion.div>
 
-          {/* Separator — desktop only */}
           <div className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1px] h-2/3 bg-gradient-to-b from-transparent via-purple-500/40 to-transparent pointer-events-none z-20" />
 
-          {/* ─── Right: Mascot & Info ───────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

@@ -9,6 +9,7 @@ import ThemeToggle from "@/components/theme/ThemeToggle";
 
 export default function Navbar() {
   const isLoggedIn = useAuthStore((s) => s.isAuthenticated);
+  const tokenValidated = useAuthStore((s) => s.tokenValidated);
   const router = useRouter();
 
   return (
@@ -39,10 +40,18 @@ export default function Navbar() {
             >
               About
             </Link>
+            <Link
+              href="/architecture"
+              className="text-sm font-medium text-indigo-200 transition-colors hover:text-white"
+            >
+              Architecture
+            </Link>
 
             <ThemeToggle />
 
-            {isLoggedIn ? (
+            {!tokenValidated ? (
+              <div className="h-9 w-28 animate-pulse rounded-full bg-indigo-800/50" />
+            ) : isLoggedIn ? (
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -80,8 +89,16 @@ export default function Navbar() {
         >
           About
         </Link>
+        <Link
+          href="/architecture"
+          className="text-sm font-medium text-indigo-200 hover:text-white transition-colors"
+        >
+          Architecture
+        </Link>
 
-        {isLoggedIn ? (
+        {!tokenValidated ? (
+          <div className="h-9 w-24 animate-pulse rounded-full bg-indigo-800/50" />
+        ) : isLoggedIn ? (
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => router.push("/chat")}

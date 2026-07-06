@@ -17,6 +17,7 @@ export interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  tokenValidated: boolean;
 }
 
 export interface AuthActions {
@@ -25,6 +26,7 @@ export interface AuthActions {
   setAccessToken: (token: string) => void;
   logout: () => void;
   setLoading: (loading: boolean) => void;
+  setTokenValidated: (validated: boolean) => void;
 }
 
 // ─── Store ──────────────────────────────────────────────────────────────────
@@ -38,11 +40,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         accessToken: null,
         isAuthenticated: false,
         isLoading: true,
+        tokenValidated: false,
 
         // Actions
         setAuth: (user, accessToken) =>
           set(
-            { user, accessToken, isAuthenticated: true, isLoading: false },
+            { user, accessToken, isAuthenticated: true, isLoading: false, tokenValidated: true },
             false,
             'setAuth',
           ),
@@ -53,12 +56,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         logout: () =>
           set(
-            { user: null, accessToken: null, isAuthenticated: false, isLoading: false },
+            { user: null, accessToken: null, isAuthenticated: false, isLoading: false, tokenValidated: true },
             false,
             'logout',
           ),
 
         setLoading: (isLoading) => set({ isLoading }, false, 'setLoading'),
+
+        setTokenValidated: (tokenValidated) => set({ tokenValidated }, false, 'setTokenValidated'),
       }),
       {
         name: 'zevra-auth',

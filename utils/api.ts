@@ -111,7 +111,7 @@ http.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         clearTokens();
-        if (typeof window !== 'undefined') window.location.href = '/auth';
+        if (typeof window !== 'undefined') window.location.href = '/auth/login';
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

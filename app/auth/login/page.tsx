@@ -70,7 +70,6 @@ export default function LoginPage() {
     setBlobMood("hmm");
 
     try {
-      // Step 1: SRP login start — get server public B + salt
       const startRes = await api.post<{
         success: boolean;
         userId: string;
@@ -81,7 +80,6 @@ export default function LoginPage() {
 
       if (!startRes.success) throw new Error("Login start failed");
 
-      // Step 2: Compute SRP client proof (A, M1, session key K)
       const { A, M1 } = await srpClient({
         username: username.trim(),
         password,
@@ -89,7 +87,6 @@ export default function LoginPage() {
         B: startRes.B,
       });
 
-      // Step 3: Send A + M1 to server for verification
       const finishRes = await api.post<{
         success: boolean;
         user: { id: string; username: string; email: string };
@@ -105,7 +102,6 @@ export default function LoginPage() {
 
       if (!finishRes.success) throw new Error("Login failed");
 
-      // Step 4: Store auth state + sync token to axios & navigate
       setTokens(finishRes.accessToken, finishRes.refreshToken);
       setAuth(finishRes.user, finishRes.accessToken);
       setBlobMood("happy");
@@ -124,7 +120,6 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page relative h-screen w-screen overflow-hidden text-slate-100 flex flex-col justify-between p-4 sm:p-6">
-      {/* Full-screen background */}
       <div className="absolute inset-0 -z-10 bg-zinc-950">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-950 to-purple-950/80" />
         <div
@@ -139,7 +134,6 @@ export default function LoginPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-80 w-80 rounded-full bg-purple-950/20 blur-3xl" />
       </div>
 
-      {/* Top nav */}
       <header className="z-30 flex items-center justify-between w-full max-w-6xl mx-auto shrink-0">
         <Link href="/" className="flex items-center gap-2 group">
           <Image
@@ -155,10 +149,8 @@ export default function LoginPage() {
         </Link>
       </header>
 
-      {/* Main Content Viewport Area */}
       <main className="relative z-10 bg mx-auto flex w-full max-w-6xl flex-1 items-center justify-center overflow-hidden">
         <div className="grid w-full grid-cols-1 items-center gap-6 lg:grid-cols-2 lg:gap-12 my-auto">
-          {/* ─── Left: Mascot & Info ───────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -204,10 +196,8 @@ export default function LoginPage() {
             </p>
           </motion.div>
 
-          {/* Separator — desktop only */}
           <div className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1px] h-2/3 bg-gradient-to-b from-transparent via-purple-500/40 to-transparent pointer-events-none z-20" />
 
-          {/* ─── Right: Form ──────────────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -308,7 +298,7 @@ export default function LoginPage() {
             </form>
 
             <p className="mt-4 text-center text-xs text-purple-200/60">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link
                 href="/auth/register"
                 className="font-medium text-purple-400 hover:text-purple-300 hover:underline"

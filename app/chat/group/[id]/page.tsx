@@ -64,6 +64,7 @@ interface RawMessage {
 export default function GroupChatPage() {
   const { id: channelId } = useParams<{ id: string }>();
   const me = useAuthStore((s) => s.user);
+
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const typingUsers = useChatStore((s) => s.typingUsers);
 
