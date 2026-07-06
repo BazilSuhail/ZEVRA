@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FiUsers, FiSearch, FiMessageSquare } from "react-icons/fi";
@@ -8,6 +8,8 @@ import { api } from "@/utils/api";
 import { useAuthStore } from "@/context/stores";
 import { useChatStore } from "@/context/stores/chat-store";
 import { getChatKey, decrypt } from "@/lib/crypto";
+import { getSocket } from "@/lib/socket";
+import { SOCKET_EVENTS } from "@/constants";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -55,6 +57,8 @@ interface InboxRow {
   lastMessageTag: string | null;
   lastMessageSenderKeyEpoch: number | null;
   createdAt: string;
+  // Members for DM online status (populated from members endpoint)
+  members?: { id: string; username: string; status: string }[];
 }
 
 type FilterTab = "all" | "direct" | "group";
@@ -71,6 +75,31 @@ export default function ChatList() {
   const [loaded, setLoaded] = useState(false);
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const roomsRef = useRef(rooms);
+  roomsRef.current = rooms;
+
+  // ─── Decrypt a single preview ────────────────────────────────────────
+  const decryptPreview = useCallback(
+    async (r: InboxRow): Promise<string> => {
+      if (!r.lastMessageContent) {
+        if (r.lastMessageAt) return "";
+        return r.type === "GROUP" ? "No messages yet" : "New conversation";
+      }
+      // No IV/tag means plaintext (no real encryption)
+      if (!r.lastMessageIv || !r.lastMessageTag) {
+        return r.lastMessageContent;
+      }
+      const chatKey = getChatKey(r.id);
+      if (chatKey) {
+        try {
+          return await decrypt(r.lastMessageContent, r.lastMessageIv, r.lastMessageTag, chatKey);
+        } catch {}
+      }
+      return r.lastMessageContent;
+    },
+    [],
+  );
 
   // ─── Fetch channels on mount ──────────────────────────────────────────
   useEffect(() => {
@@ -78,10 +107,18 @@ export default function ChatList() {
     api
       .get<InboxRow[]>("/channels")
       .then(async (data) => {
+        // Decrypt previews first
+        const newPreviewMap: Record<string, string> = {};
+        for (const r of data) {
+          newPreviewMap[r.id] = await decryptPreview(r);
+        }
+        setPreviewMap(newPreviewMap);
+
+        // Set rooms + loaded together so previews are ready on first render
         setRooms(data);
         setLoaded(true);
 
-        // Fetch names for DM channels where name is null
+        // Fetch names for DM channels where name is null (non-blocking)
         const dmWithoutName = data.filter(
           (r) => r.type === "DIRECT" && !r.name && r.lastMessageSenderId,
         );
@@ -93,8 +130,11 @@ export default function ChatList() {
               }
               try {
                 const channel = await api.get<any>(`/channels/${r.id}`);
-                // Channel response might have members or name
                 if (channel?.name) return { id: r.id, name: channel.name };
+                if (channel?.members) {
+                  const other = channel.members.find((m: any) => m.id !== user?.id);
+                  if (other?.username) return { id: r.id, name: other.username };
+                }
               } catch {}
               return { id: r.id, name: r.lastMessageSenderName || "Unknown" };
             }),
@@ -103,27 +143,99 @@ export default function ChatList() {
           entries.forEach((e) => {
             if (e.status === "fulfilled") updates[e.value.id] = e.value.name;
           });
-          setNameMap(updates);
+          setNameMap((prev) => ({ ...prev, ...updates }));
         }
 
-        // Decrypt previews
-        for (const r of data) {
-          if (!r.lastMessageContent || !r.lastMessageIv || !r.lastMessageTag) continue;
-          const chatKey = getChatKey(r.id);
-          if (!chatKey) {
-            setPreviewMap((prev) => ({ ...prev, [r.id]: "[Encrypted message]" }));
-            continue;
-          }
+        // Fetch online status for DM contacts
+        const dmRooms = data.filter((r) => r.type === "DIRECT");
+        if (dmRooms.length > 0) {
           try {
-            const pt = await decrypt(r.lastMessageContent, r.lastMessageIv, r.lastMessageTag, chatKey);
-            setPreviewMap((prev) => ({ ...prev, [r.id]: pt }));
+            const memberIds: string[] = [];
+            for (const r of dmRooms) {
+              const channel = await api.get<any>(`/channels/${r.id}`);
+              if (channel?.members) {
+                const other = channel.members.find((m: any) => m.id !== user?.id);
+                if (other) memberIds.push(other.id);
+              }
+            }
+            if (memberIds.length > 0) {
+              const res = await api.get<{ online: string[] }>(
+                `/api/users/online?ids=${memberIds.join(",")}`,
+              );
+              setOnlineUsers(new Set(res.online));
+            }
           } catch {
-            setPreviewMap((prev) => ({ ...prev, [r.id]: "[Encrypted message]" }));
+            // Silent - online status is non-critical
           }
         }
       })
       .catch(() => setLoaded(true));
-  }, [isAuthenticated, loaded, user?.id]);
+  }, [isAuthenticated, loaded, user?.id, decryptPreview]);
+
+  // ─── Real-time updates via socket ─────────────────────────────────────
+  useEffect(() => {
+    if (!loaded) return;
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleMessageNew = async (msg: any) => {
+      const channelId = msg.channelId;
+      if (!channelId) return;
+
+      // Preview is the raw content (plaintext since no real encryption)
+      let preview = msg.encryptedContent || "";
+      if (msg.contentIv && msg.contentTag) {
+        const chatKey = getChatKey(channelId);
+        if (chatKey) {
+          try {
+            preview = await decrypt(msg.encryptedContent, msg.contentIv, msg.contentTag, chatKey);
+          } catch {}
+        }
+      }
+
+      setPreviewMap((prevMap) => ({ ...prevMap, [channelId]: preview }));
+
+      // Move room to top
+      setRooms((prev) => {
+        const idx = prev.findIndex((r) => r.id === channelId);
+        if (idx === -1) return prev;
+        const room = { ...prev[idx], lastMessageAt: msg.createdAt || new Date().toISOString() };
+        const others = prev.filter((r) => r.id !== channelId);
+        return [room, ...others];
+      });
+    };
+
+    socket.on(SOCKET_EVENTS.MESSAGE_NEW, handleMessageNew);
+    return () => {
+      socket.off(SOCKET_EVENTS.MESSAGE_NEW, handleMessageNew);
+    };
+  }, [loaded]);
+
+  // ─── Refresh online status periodically ───────────────────────────────
+  useEffect(() => {
+    if (!loaded) return;
+    const interval = setInterval(async () => {
+      const dmRooms = roomsRef.current.filter((r) => r.type === "DIRECT");
+      if (dmRooms.length === 0) return;
+      try {
+        const memberIds: string[] = [];
+        for (const r of dmRooms) {
+          const channel = await api.get<any>(`/channels/${r.id}`);
+          if (channel?.members) {
+            const other = channel.members.find((m: any) => m.id !== user?.id);
+            if (other) memberIds.push(other.id);
+          }
+        }
+        if (memberIds.length > 0) {
+          const res = await api.get<{ online: string[] }>(
+            `/api/users/online?ids=${memberIds.join(",")}`,
+          );
+          setOnlineUsers(new Set(res.online));
+        }
+      } catch {}
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [loaded, user?.id]);
 
   // ─── Derived ──────────────────────────────────────────────────────────
   const displayName = (room: InboxRow): string => {
@@ -138,15 +250,44 @@ export default function ChatList() {
 
   const previewText = (room: InboxRow): string => {
     const decrypted = previewMap[room.id];
-    if (decrypted) {
+    if (decrypted !== undefined) {
       const prefix = room.type === "DIRECT" && room.lastMessageSenderId === user?.id ? "You: " : "";
       return prefix + decrypted;
+    }
+    // Fallback while previewMap is loading
+    if (room.lastMessageContent) {
+      return room.lastMessageContent;
+    }
+    if (room.lastMessageAt) {
+      return "";
     }
     return room.type === "GROUP" ? "No messages yet" : "New conversation";
   };
 
+  const getDmOtherUserId = (room: InboxRow): string | null => {
+    if (room.type !== "DIRECT") return null;
+    // From members array if available
+    if (room.members) {
+      const other = room.members.find((m) => m.id !== user?.id);
+      return other?.id || null;
+    }
+    // Fallback: use lastMessageSenderId if it's not the current user
+    if (room.lastMessageSenderId && room.lastMessageSenderId !== user?.id) {
+      return room.lastMessageSenderId;
+    }
+    return null;
+  };
+
+  const sorted = useMemo(() => {
+    return [...rooms].sort((a, b) => {
+      const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [rooms]);
+
   const filtered = useMemo(() => {
-    let result = rooms;
+    let result = sorted;
     if (activeTab === "direct") result = result.filter((r) => r.type === "DIRECT");
     else if (activeTab === "group") result = result.filter((r) => r.type === "GROUP");
     if (search.trim()) {
@@ -154,7 +295,7 @@ export default function ChatList() {
       result = result.filter((r) => displayName(r).toLowerCase().includes(q));
     }
     return result;
-  }, [rooms, search, activeTab, nameMap, user?.id]);
+  }, [sorted, search, activeTab, nameMap, user?.id]);
 
   return (
     <div className="flex h-full w-full sm:w-70 lg:w-80 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -232,6 +373,7 @@ export default function ChatList() {
           const colorClass = isGroup ? "" : hashColor(name);
           const unread = unreadCounts[room.id] || 0;
           const preview = previewText(room);
+          const isOnline = !isGroup && onlineUsers.has(getDmOtherUserId(room) || "");
 
           return (
             <Link
@@ -252,6 +394,10 @@ export default function ChatList() {
                 >
                   {isGroup ? <FiUsers className="h-4 w-4" /> : initial}
                 </div>
+                {/* Online dot */}
+                {isOnline && (
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 dark:border-zinc-900" />
+                )}
               </div>
               <div className="flex-1 overflow-hidden">
                 <div className="flex items-center justify-between">

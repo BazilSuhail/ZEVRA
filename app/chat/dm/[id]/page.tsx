@@ -85,6 +85,17 @@ export default function DMChatPage() {
   const channelTyping = typingUsers[channelId] || new Set();
   const typingNames = Array.from(channelTyping).filter((uid) => uid !== me?.id);
 
+  // ─── Track active room for unread counting ───────────────────────────
+  const setActiveRoom = useChatStore((s) => s.setActiveRoom);
+  const resetUnread = useChatStore((s) => s.resetUnread);
+  useEffect(() => {
+    if (channelId) {
+      setActiveRoom(channelId);
+      resetUnread(channelId);
+    }
+    return () => setActiveRoom(null);
+  }, [channelId, setActiveRoom, resetUnread]);
+
   // ─── Fetch channel info ──────────────────────────────────────────────
   useEffect(() => {
     if (!channelId || !isAuthenticated) return;
@@ -196,6 +207,16 @@ export default function DMChatPage() {
           setLoading(false);
           setSyncing(false);
 
+          // Mark as read on server
+          if (serverMessages.length > 0 && !loadCursor) {
+            const lastMsg = serverMessages[serverMessages.length - 1];
+            socket?.emit(SOCKET_EVENTS.MARK_READ, {
+              channelId,
+              messageId: lastMsg.id,
+            }, () => {});
+            resetUnread(channelId);
+          }
+
           if (!loadCursor) {
             setTimeout(() => {
               messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -204,7 +225,7 @@ export default function DMChatPage() {
         },
       );
     },
-    [socket, channelId, idbReady],
+    [socket, channelId, idbReady, resetUnread],
   );
 
   useEffect(() => {
@@ -544,7 +565,7 @@ export default function DMChatPage() {
                 key={msg.id}
                 className={`mb-5   flex ${isMine ? "justify-end" : "justify-start"}`}
               >
-                <div className="max-w-[80%]">
+                <div className="max-w-[80%] lg:max-w-120">
                   <div
                     className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
                       isMine

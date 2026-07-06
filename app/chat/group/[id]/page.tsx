@@ -87,6 +87,17 @@ export default function GroupChatPage() {
   const channelTyping = typingUsers[channelId] || new Set();
   const typingNames = Array.from(channelTyping).filter((uid) => uid !== me?.id);
 
+  // ─── Track active room for unread counting ───────────────────────────
+  const setActiveRoom = useChatStore((s) => s.setActiveRoom);
+  const resetUnread = useChatStore((s) => s.resetUnread);
+  useEffect(() => {
+    if (channelId) {
+      setActiveRoom(channelId);
+      resetUnread(channelId);
+    }
+    return () => setActiveRoom(null);
+  }, [channelId, setActiveRoom, resetUnread]);
+
   const memberMap = useMemo(() => {
     const map = new Map<string, { username: string; color: string }>();
     const colors = [
@@ -210,6 +221,16 @@ export default function GroupChatPage() {
           setLoading(false);
           setSyncing(false);
 
+          // Mark as read on server
+          if (serverMessages.length > 0 && !loadCursor) {
+            const lastMsg = serverMessages[serverMessages.length - 1];
+            socket?.emit(SOCKET_EVENTS.MARK_READ, {
+              channelId,
+              messageId: lastMsg.id,
+            }, () => {});
+            resetUnread(channelId);
+          }
+
           if (!loadCursor) {
             setTimeout(() => {
               messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -218,7 +239,7 @@ export default function GroupChatPage() {
         },
       );
     },
-    [socket, channelId, idbReady],
+    [socket, channelId, idbReady, resetUnread],
   );
 
   useEffect(() => {
