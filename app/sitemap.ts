@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://zevra.app";
+  const baseUrl = "https://zevra-chat.netlify.app";
 
   return [
     {

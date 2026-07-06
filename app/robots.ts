@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/chat/", "/auth/"],
       },
     ],
-    sitemap: "https://zevra.app/sitemap.xml",
+    sitemap: "https://zevra-chat.netlify.app/sitemap.xml",
   };
 }

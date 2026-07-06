@@ -6,7 +6,7 @@ export default function JsonLd() {
     alternateName: "Zevra Chat",
     description:
       "Zero-knowledge, end-to-end encrypted real-time chat and video conferencing platform with SRP-6a authentication, X25519/Ed25519 key exchange, and AES-256-GCM encryption. Built by Bazil Suhail.",
-    url: "https://zevra.app",
+    url: "https://zevra-chat.netlify.app",
     applicationCategory: "CommunicationApplication",
     operatingSystem: "Web",
     author: {
@@ -27,7 +27,7 @@ export default function JsonLd() {
       "Open Source and Auditable Code",
       "Multi-Node Architecture with Redis and BullMQ",
     ],
-    screenshot: "https://zevra.app/screenshot.png",
+    screenshot: "https://zevra-chat.netlify.app/screenshot.png",
     softwareVersion: "1.0",
     datePublished: "2026-01-01",
     keywords: "zevra, zevra chat, bazil suhail, encrypted messaging, e2ee, zero-knowledge",

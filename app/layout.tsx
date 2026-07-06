@@ -4,7 +4,7 @@ import { Providers } from "@/context/providers";
 import JsonLd from "@/components/JsonLd";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://zevra.app"),
+  metadataBase: new URL("https://zevra-chat.netlify.app"),
   title: {
     default: "Zevra | Zero-Knowledge Encrypted Chat & Video",
     template: "%s | Zevra",
@@ -15,18 +15,22 @@ export const metadata: Metadata = {
     "zevra",
     "zevra chat",
     "bazil suhail",
+    "encrypted chat",
     "end-to-end encrypted chat",
     "zero-knowledge messaging",
     "encrypted video conferencing",
     "private messaging app",
     "E2EE chat",
+    "secure messaging",
+    "SRP-6a authentication",
+    "AES-256-GCM encryption",
   ],
   authors: [{ name: "Bazil Suhail" }],
   creator: "Bazil Suhail",
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://zevra.app",
+    url: "https://zevra-chat.netlify.app",
     siteName: "Zevra",
     title: "Zevra | Zero-Knowledge Encrypted Chat & Video",
     description:
@@ -59,7 +63,10 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: "https://zevra.app",
+    canonical: "https://zevra-chat.netlify.app",
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
   },
 };
 

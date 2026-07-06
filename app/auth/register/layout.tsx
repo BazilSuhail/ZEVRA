@@ -1,12 +1,27 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Create Account on Zevra",
+  title: "Register",
   description:
-    "Create your Zevra account with zero-knowledge encryption. Join thousands of users who trust Zevra for secure, encrypted communication.",
-  robots: {
-    index: false,
-    follow: false,
+    "Create your Zevra account. Zero-knowledge encrypted chat — sign up for private, end-to-end encrypted messaging built by Bazil Suhail.",
+  keywords: [
+    "zevra register",
+    "zevra sign up",
+    "encrypted chat sign up",
+    "secure messaging register",
+    "zero-knowledge chat register",
+    "E2EE chat register",
+    "bazil suhail",
+  ],
+  openGraph: {
+    title: "Register for Zevra | Encrypted Chat",
+    description:
+      "Create your Zevra account — zero-knowledge encrypted chat with SRP-6a authentication.",
+    url: "https://zevra-chat.netlify.app/auth/register",
+  },
+  robots: { index: false, follow: true },
+  alternates: {
+    canonical: "https://zevra-chat.netlify.app/auth/register",
   },
 };
 

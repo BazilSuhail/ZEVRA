@@ -47,7 +47,7 @@ export default function Hero() {
               <span>Zero-Knowledge Architecture</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight text-white">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white">
               Privacy is a Right, <br />
               <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-300 bg-clip-text text-transparent">
                 Not a Feature.
