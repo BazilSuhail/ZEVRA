@@ -8,14 +8,24 @@ import {
   FiPhone,
 } from "react-icons/fi";
 import { useCallStore } from "@/context/stores/call-store";
+import { getActiveCall } from "@/lib/webrtc";
 
 interface CallControlsProps {
   variant?: "overlay" | "fullscreen";
 }
 
 export default function CallControls({ variant = "overlay" }: CallControlsProps) {
-  const { isMuted, isVideoOff, toggleMute, toggleVideo, hangupCall } =
+  const { isMuted, isVideoOff, toggleMute, toggleVideo } =
     useCallStore();
+
+  const handleHangup = () => {
+    const call = getActiveCall();
+    if (call) {
+      call.hangup('you');
+    } else {
+      useCallStore.getState().hangupCall('you');
+    }
+  };
 
   const btnBase =
     variant === "fullscreen"
@@ -54,7 +64,7 @@ export default function CallControls({ variant = "overlay" }: CallControlsProps)
       </button>
 
       <button
-        onClick={hangupCall}
+        onClick={handleHangup}
         className={hangupBtnBase}
         title="End call"
       >

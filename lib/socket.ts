@@ -63,7 +63,7 @@ export interface ServerToClientEvents {
     callerUsername: string;
     method?: string;
   }) => void;
-  [SOCKET_EVENTS.CALL_ACCEPTED]: (data: { callId: string }) => void;
+  [SOCKET_EVENTS.CALL_ACCEPTED]: (data: { callId: string; calleeId: string; calleeUsername: string }) => void;
   [SOCKET_EVENTS.CALL_REJECTED]: (data: { callId: string }) => void;
   [SOCKET_EVENTS.CALL_HANGUP_RECV]: (data: { callId: string }) => void;
   [SOCKET_EVENTS.CALL_OFFER_RECV]: (data: {
@@ -75,6 +75,8 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.CALL_ANSWER_RECV]: (data: {
     callId: string;
     answer: RTCSessionDescriptionInit;
+    calleeId?: string;
+    calleeUsername?: string;
   }) => void;
   [SOCKET_EVENTS.CALL_ICE_CANDIDATE_RECV]: (data: {
     callId: string;
@@ -172,16 +174,14 @@ export interface ClientToServerEvents {
   }) => void;
   [SOCKET_EVENTS.CALL_ACCEPT]: (data: { callId: string }) => void;
   [SOCKET_EVENTS.CALL_REJECT]: (data: { callId: string }) => void;
-  [SOCKET_EVENTS.CALL_HANGUP]: (data: { callId: string; targetUserId: string }) => void;
+  [SOCKET_EVENTS.CALL_HANGUP]: (data: { callId: string }) => void;
   [SOCKET_EVENTS.CALL_OFFER]: (data: {
     callId: string;
-    offer: RTCSessionDescriptionInit;
-    targetUserId: string;
+    sdp: string;
   }) => void;
   [SOCKET_EVENTS.CALL_ANSWER]: (data: {
     callId: string;
-    answer: RTCSessionDescriptionInit;
-    targetUserId: string;
+    sdp: string;
   }) => void;
   [SOCKET_EVENTS.CALL_ICE_CANDIDATE]: (data: {
     callId: string;

@@ -24,13 +24,23 @@ export interface IncomingCall {
   method?: CallMethod;
 }
 
+export interface CallEndedInfo {
+  peerUsername: string;
+  duration: number;
+  endedBy: 'you' | 'peer' | 'error';
+}
+
 export interface CallState {
   // Active call
   activeCall: ActiveCall | null;
   callStatus: CallStatus;
+  isCaller: boolean;
 
   // Incoming call
   incomingCall: IncomingCall | null;
+
+  // Call ended
+  callEndedInfo: CallEndedInfo | null;
 
   // Media controls
   isMuted: boolean;
@@ -57,8 +67,9 @@ export interface CallActions {
   startCall: (targetUserIds: string[], type: 'DM' | 'GROUP') => void;
   acceptCall: () => void;
   rejectCall: () => void;
-  hangupCall: () => void;
+  hangupCall: (endedBy?: 'you' | 'peer' | 'error') => void;
   clearCall: () => void;
+  dismissCallEnded: () => void;
 
   // State setters
   setActiveCall: (call: ActiveCall | null) => void;
@@ -95,7 +106,9 @@ export const useCallStore = create<CallState & CallActions>()(
         // ─── Initial State ────────────────────────────────────────────
         activeCall: null,
         callStatus: 'idle',
+        isCaller: false,
         incomingCall: null,
+        callEndedInfo: null,
         isMuted: false,
         isVideoOff: false,
         isFullscreen: false,
@@ -109,11 +122,10 @@ export const useCallStore = create<CallState & CallActions>()(
         // ─── Call Lifecycle ───────────────────────────────────────────
 
         startCall: (targetUserIds, type) => {
-          // This will be called from the component
-          // The actual socket emit happens in the component
           set(
             {
               callStatus: 'ringing',
+              isCaller: true,
               callDuration: 0,
               callStartedAt: null,
               isMuted: false,
@@ -126,7 +138,7 @@ export const useCallStore = create<CallState & CallActions>()(
         },
 
         acceptCall: () => {
-          set({ callStatus: 'connecting' }, false, 'acceptCall');
+          set({ callStatus: 'connecting', isCaller: false }, false, 'acceptCall');
         },
 
         rejectCall: () => {
@@ -134,14 +146,20 @@ export const useCallStore = create<CallState & CallActions>()(
             {
               incomingCall: null,
               callStatus: 'idle',
+              isCaller: false,
             },
             false,
             'rejectCall',
           );
         },
 
-        hangupCall: () => {
-          const { localStream, remoteStream, peerConnection } = get();
+        hangupCall: (endedBy = 'you') => {
+          const { localStream, remoteStream, peerConnection, activeCall, callDuration } = get();
+
+          // Capture call ended info before clearing
+          const endedInfo: CallEndedInfo | null = activeCall
+            ? { peerUsername: activeCall.peerUsername, duration: callDuration, endedBy }
+            : null;
 
           // Cleanup streams
           if (localStream) {
@@ -158,7 +176,9 @@ export const useCallStore = create<CallState & CallActions>()(
             {
               activeCall: null,
               callStatus: 'idle',
+              isCaller: false,
               incomingCall: null,
+              callEndedInfo: endedInfo,
               localStream: null,
               remoteStream: null,
               peerConnection: null,
@@ -190,6 +210,8 @@ export const useCallStore = create<CallState & CallActions>()(
             {
               activeCall: null,
               callStatus: 'idle',
+              isCaller: false,
+              callEndedInfo: null,
               localStream: null,
               remoteStream: null,
               peerConnection: null,
@@ -203,6 +225,8 @@ export const useCallStore = create<CallState & CallActions>()(
             'clearCall',
           );
         },
+
+        dismissCallEnded: () => set({ callEndedInfo: null }, false, 'dismissCallEnded'),
 
         // ─── State Setters ────────────────────────────────────────────
 

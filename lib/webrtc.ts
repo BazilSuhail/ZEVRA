@@ -21,6 +21,12 @@ export function formatDuration(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+async function getOrCreateLocalStream(): Promise<MediaStream> {
+  const existing = useCallStore.getState().localStream;
+  if (existing && existing.active) return existing;
+  return getLocalStream(true);
+}
+
 // ─── Peer Connection Factory ────────────────────────────────────────────────
 
 export function createPeerConnection(): RTCPeerConnection {
@@ -95,7 +101,7 @@ export class WebRTCCall {
         useCallStore.getState().setCallStatus('connected');
         useCallStore.getState().startTimer();
       } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
-        this.hangup();
+        this.hangup('error');
       }
     };
   }
@@ -167,7 +173,7 @@ export class WebRTCCall {
     }
   }
 
-  hangup() {
+  hangup(endedBy: 'you' | 'peer' | 'error' = 'you') {
     if (this.destroyed) return;
     this.destroyed = true;
 
@@ -179,10 +185,9 @@ export class WebRTCCall {
 
     this.socket.emit(SOCKET_EVENTS.CALL_HANGUP, {
       callId: this.callId,
-      targetUserId: this.peerId,
     });
 
-    useCallStore.getState().hangupCall();
+    useCallStore.getState().hangupCall(endedBy);
   }
 
   destroy() {
@@ -209,18 +214,18 @@ export function getActiveCall() {
 
 export function setupWebRTCSocketHandlers(socket: AppSocket) {
   // Server confirms call method
-  socket.on(SOCKET_EVENTS.CALL_METHOD_SELECTED, async (data: any) => {
+  socket.on(SOCKET_EVENTS.CALL_METHOD_SELECTED, (data: any) => {
     const { callId, method, targetUserId, targetUsername } = data;
 
     if (method === 'WEBRTC') {
       const store = useCallStore.getState();
+      // Update with real callId/peerId from server (callStatus already 'ringing' from startCall)
       store.setActiveCall({
         callId,
         method: 'WEBRTC',
         peerId: targetUserId,
         peerUsername: targetUsername,
       });
-      store.setCallStatus('ringing');
     }
   });
 
@@ -234,31 +239,63 @@ export function setupWebRTCSocketHandlers(socket: AppSocket) {
     });
   });
 
-  // Call accepted by remote
+  // Call accepted by remote — caller creates offer, callee sets up PC and waits
   socket.on(SOCKET_EVENTS.CALL_ACCEPTED, async (data: any) => {
     const store = useCallStore.getState();
-    store.setCallStatus('connecting');
+    const { callId, calleeId, calleeUsername } = data;
 
-    if (!store.activeCall) return;
+    // Use isCaller flag (set synchronously by startCall in CallButton)
+    const isCaller = store.isCaller;
 
-    activeCall = new WebRTCCall(socket, store.activeCall.callId, store.activeCall.peerId);
-
-    try {
-      const stream = await getLocalStream(true);
-      await activeCall.addLocalStream(stream);
-
-      const offer = await activeCall.createOffer();
-      socket.emit(SOCKET_EVENTS.CALL_OFFER, {
-        callId: store.activeCall.callId,
-        offer,
-        targetUserId: store.activeCall.peerId,
+    // Fallback: if CALL_METHOD_SELECTED never fired, set up activeCall now
+    if (!store.activeCall) {
+      const peerId = calleeId || data.peerId || '';
+      const peerUsername = calleeUsername || data.peerUsername || 'Unknown';
+      store.setActiveCall({
+        callId,
+        method: 'WEBRTC',
+        peerId,
+        peerUsername,
       });
+    }
 
-      useCallStore.setState({ peerConnection: activeCall.peerConnection });
-    } catch (err) {
-      console.error('[WebRTC] Failed to create offer:', err);
-      activeCall.destroy();
-      activeCall = null;
+    if (isCaller) {
+      // ─── Caller: create offer ──────────────────────────────────────
+      store.setCallStatus('connecting');
+
+      const peerId = store.activeCall?.peerId || calleeId || '';
+      activeCall = new WebRTCCall(socket, callId, peerId);
+
+      try {
+        const stream = await getOrCreateLocalStream();
+        await activeCall.addLocalStream(stream);
+
+        const offer = await activeCall.createOffer();
+        socket.emit(SOCKET_EVENTS.CALL_OFFER, {
+          callId,
+          sdp: offer.sdp!,
+        });
+
+        useCallStore.setState({ peerConnection: activeCall.peerConnection });
+      } catch (err) {
+        console.error('[WebRTC] Failed to create offer:', err);
+        activeCall.destroy();
+        activeCall = null;
+      }
+    } else {
+      // ─── Callee: set up PC, get stream, wait for offer ─────────────
+      const peerId = store.activeCall?.peerId || '';
+      activeCall = new WebRTCCall(socket, callId, peerId);
+
+      try {
+        const stream = await getOrCreateLocalStream();
+        await activeCall.addLocalStream(stream);
+        useCallStore.setState({ peerConnection: activeCall.peerConnection });
+      } catch (err) {
+        console.error('[WebRTC] Failed to setup callee:', err);
+        activeCall.destroy();
+        activeCall = null;
+      }
     }
   });
 
@@ -273,65 +310,82 @@ export function setupWebRTCSocketHandlers(socket: AppSocket) {
   socket.on(SOCKET_EVENTS.CALL_HANGUP_RECV, () => {
     activeCall?.destroy();
     activeCall = null;
-    useCallStore.getState().hangupCall();
+    useCallStore.getState().hangupCall('peer');
   });
 
-  // WebRTC offer received
+  // WebRTC offer received — callee receives the offer from caller
   socket.on(SOCKET_EVENTS.CALL_OFFER_RECV, async (data: any) => {
     const store = useCallStore.getState();
-    const { callId, offer, callerId, callerUsername } = data;
+    const { callId, callerId, callerUsername } = data;
 
-    store.setIncomingCall({
-      callId,
-      callerId,
-      callerUsername,
-      method: 'WEBRTC',
-    });
+    // Handle both server formats: { offer: { type, sdp } } or raw { sdp }
+    const sdp = data.offer?.sdp ?? data.sdp;
+    if (!sdp || typeof sdp !== 'string' || !sdp.startsWith('v=')) {
+      console.error('[WebRTC] Received invalid offer SDP:', data);
+      return;
+    }
 
-    // Auto-accept (called when user clicks accept)
-    const acceptHandler = async () => {
-      store.setActiveCall({
-        callId,
-        method: 'WEBRTC',
-        peerId: callerId,
-        peerUsername: callerUsername,
-      });
-      store.setCallStatus('connecting');
-
-      activeCall = new WebRTCCall(socket, callId, callerId);
-
+    // If we already have an activeCall (callee accepted and set up PC), just handle offer
+    if (activeCall) {
       try {
-        const stream = await getLocalStream(true);
-        await activeCall.addLocalStream(stream);
-
-        await activeCall.handleOffer(offer.sdp);
+        await activeCall.handleOffer(sdp);
 
         const answer = await activeCall.createAnswer();
         socket.emit(SOCKET_EVENTS.CALL_ANSWER, {
           callId,
-          answer,
-          targetUserId: callerId,
+          sdp: answer.sdp!,
         });
-
-        useCallStore.setState({ peerConnection: activeCall.peerConnection });
-        store.clearIncomingCall();
       } catch (err) {
         console.error('[WebRTC] Failed to handle offer:', err);
-        activeCall?.destroy();
-        activeCall = null;
       }
-    };
+      return;
+    }
 
-    // Store handler so UI can call it
-    useCallStore.setState({ _acceptOffer: acceptHandler } as any);
+    // Fallback: create everything from scratch (offer arrived before CALL_ACCEPTED)
+    store.setActiveCall({
+      callId,
+      method: 'WEBRTC',
+      peerId: callerId,
+      peerUsername: callerUsername,
+    });
+    store.setCallStatus('connecting');
+    store.clearIncomingCall();
+
+    activeCall = new WebRTCCall(socket, callId, callerId);
+
+    try {
+      const stream = await getOrCreateLocalStream();
+      await activeCall.addLocalStream(stream);
+
+      await activeCall.handleOffer(sdp);
+
+      const answer = await activeCall.createAnswer();
+      socket.emit(SOCKET_EVENTS.CALL_ANSWER, {
+        callId,
+        sdp: answer.sdp!,
+      });
+
+      useCallStore.setState({ peerConnection: activeCall.peerConnection });
+    } catch (err) {
+      console.error('[WebRTC] Failed to handle offer fallback:', err);
+      activeCall.destroy();
+      activeCall = null;
+    }
   });
 
   // WebRTC answer received
   socket.on(SOCKET_EVENTS.CALL_ANSWER_RECV, async (data: any) => {
     if (!activeCall) return;
 
+    // Handle both server formats: { answer: { type, sdp } } or raw { sdp }
+    const sdp = data.answer?.sdp ?? data.sdp;
+    if (!sdp || typeof sdp !== 'string' || !sdp.startsWith('v=')) {
+      console.error('[WebRTC] Received invalid answer SDP:', data);
+      return;
+    }
+
     try {
-      await activeCall.handleAnswer(data.answer.sdp);
+      await activeCall.handleAnswer(sdp);
     } catch (err) {
       console.error('[WebRTC] Failed to handle answer:', err);
     }

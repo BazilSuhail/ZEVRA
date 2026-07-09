@@ -1,12 +1,15 @@
 "use client";
 
-import { FiBell, FiMoon, FiSun, FiMonitor } from "react-icons/fi";
+import { FiBell, FiMoon, FiSun, FiMonitor, FiPhone } from "react-icons/fi";
 import { useUiStore } from "@/context/stores/ui-store";
 import type { Theme } from "@/context/stores/ui-store";
+import { useCallStore } from "@/context/stores/call-store";
 
 export default function SettingsPage() {
   const theme = useUiStore((s) => s.theme);
   const setTheme = useUiStore((s) => s.setTheme);
+  const ringtoneEnabled = useCallStore((s) => s.ringtoneEnabled);
+  const setRingtoneEnabled = useCallStore((s) => s.setRingtoneEnabled);
 
   const themeOptions: { value: Theme; label: string; icon: typeof FiMoon }[] = [
     { value: "dark", label: "Dark", icon: FiMoon },
@@ -71,6 +74,30 @@ export default function SettingsPage() {
             <div className="h-6 w-11 rounded-full bg-zinc-300 p-1 dark:bg-zinc-700">
               <span className="block h-4 w-4 rounded-full bg-white" />
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <FiPhone className="text-indigo-600" />
+              <div>
+                <p className="font-semibold">Call Ringtone</p>
+                <p className="text-xs text-zinc-500">Play sound for incoming calls</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setRingtoneEnabled(!ringtoneEnabled)}
+              className={`relative h-6 w-11 rounded-full p-1 transition-colors ${
+                ringtoneEnabled ? "bg-indigo-600" : "bg-zinc-300 dark:bg-zinc-700"
+              }`}
+            >
+              <span
+                className={`block h-4 w-4 rounded-full bg-white transition-transform ${
+                  ringtoneEnabled ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
           </div>
         </div>
       </div>

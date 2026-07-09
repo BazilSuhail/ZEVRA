@@ -29,7 +29,7 @@ export default function IncomingCallToast() {
         audioRef.current = null;
       }
     };
-  }, [incomingCall, callStatus, ringtoneEnabled]);
+  }, [incomingCall?.callId, callStatus, ringtoneEnabled]);
 
   // Auto-dismiss after 30s
   useEffect(() => {
@@ -40,15 +40,25 @@ export default function IncomingCallToast() {
     }, 30000);
 
     return () => clearTimeout(timer);
-  }, [incomingCall]);
+  }, [incomingCall?.callId]);
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
     if (!incomingCall) return;
     const socket = getSocket();
     if (!socket) return;
 
+    // Set active call + status so overlay shows immediately
+    useCallStore.getState().setActiveCall({
+      callId: incomingCall.callId,
+      method: "WEBRTC",
+      peerId: incomingCall.callerId,
+      peerUsername: incomingCall.callerUsername,
+    });
+    useCallStore.getState().setCallStatus("connecting");
+    useCallStore.getState().clearIncomingCall();
+
+    // Tell server we accepted
     socket.emit(SOCKET_EVENTS.CALL_ACCEPT, { callId: incomingCall.callId });
-    useCallStore.getState().acceptCall();
   };
 
   const handleReject = () => {

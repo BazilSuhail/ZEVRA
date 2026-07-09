@@ -6,8 +6,10 @@ import { bindSocketHandlers, unbindSocketHandlers } from '@/lib/socket-handlers'
 import { useAuthStore } from '@/context/stores/auth-store';
 import { useSocketStore } from '@/context/stores/socket-store';
 import { setTokens, loadRefreshToken, api } from '@/utils/api';
-import IncomingCallToast from '@/components/calls/IncomingCallToast';
+import OutgoingCallModal from '@/components/calls/OutgoingCallModal';
+import IncomingCallModal from '@/components/calls/IncomingCallModal';
 import ActiveCallOverlay from '@/components/calls/ActiveCallOverlay';
+import CallEndedOverlay from '@/components/calls/CallEndedOverlay';
 
 // ─── Socket Manager ─────────────────────────────────────────────────────────
 
@@ -120,8 +122,10 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <IncomingCallToast />
+      <OutgoingCallModal />
+      <IncomingCallModal />
       <ActiveCallOverlay />
+      <CallEndedOverlay />
     </>
   );
 }

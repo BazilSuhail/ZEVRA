@@ -508,6 +508,7 @@ export default function GroupChatPage() {
             <CallButton
               targetUserIds={channel.members.filter((m) => m.id !== me?.id).map((m) => m.id)}
               type="GROUP"
+              peerUsername={channel.name || "Group"}
             />
           )}
           <button className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">

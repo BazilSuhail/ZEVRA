@@ -19,9 +19,11 @@ import {
   FiShield,
   FiLogOut,
   FiUsers,
+  FiPhone,
 } from "react-icons/fi";
 
 const bottomItems = [
+  { href: "/chat/calls", icon: FiPhone, label: "Calls" },
   { href: "/chat/settings", icon: FiSettings, label: "Settings" },
   { href: "/chat/profile", icon: FiUser, label: "Profile" },
   { href: "/chat/audit", icon: FiShield, label: "Security" },
