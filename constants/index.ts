@@ -19,6 +19,17 @@ export const SOCKET_EVENTS = {
   TYPING_START: 'typing:start',
   TYPING_STOP: 'typing:stop',
 
+  // Calls — Client → Server
+  CALL_INITIATE: 'call:initiate',
+  CALL_ACCEPT: 'call:accept',
+  CALL_REJECT: 'call:reject',
+  CALL_HANGUP: 'call:hangup',
+  CALL_OFFER: 'call:offer',
+  CALL_ANSWER: 'call:answer',
+  CALL_ICE_CANDIDATE: 'call:ice-candidate',
+  CALL_LIVEKIT_FALLBACK: 'call:livekit-fallback',
+  CALL_LIVEKIT_JOIN_GROUP: 'call:livekit-join-group',
+
   // Server → Client
   CONNECTED: 'connected',
   CONNECT_ERROR: 'connect_error',
@@ -32,6 +43,19 @@ export const SOCKET_EVENTS = {
   REACTION_ADDED: 'reaction:added',
   REACTION_REMOVED: 'reaction:removed',
   HEARTBEAT_ACK: 'heartbeat-ack',
+
+  // Calls — Server → Client
+  CALL_METHOD_SELECTED: 'call:method-selected',
+  CALL_INCOMING: 'call:incoming',
+  CALL_ACCEPTED: 'call:accepted',
+  CALL_REJECTED: 'call:rejected',
+  CALL_HANGUP_RECV: 'call:hangup',
+  CALL_OFFER_RECV: 'call:offer',
+  CALL_ANSWER_RECV: 'call:answer',
+  CALL_ICE_CANDIDATE_RECV: 'call:ice-candidate',
+  LIVEKIT_TOKEN_REQUEST: 'livekit:token-request',
+  LIVEKIT_INCOMING: 'livekit:incoming',
+  LIVEKIT_GROUP_INVITE: 'livekit:group-invite',
 } as const;
 
 // ─── Enums ──────────────────────────────────────────────────────────────────

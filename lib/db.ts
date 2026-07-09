@@ -53,6 +53,18 @@ export interface PendingOp {
   createdAt: string;
 }
 
+export interface StoredCall {
+  id: string;
+  type: 'WEBRTC' | 'LIVEKIT';
+  peerId: string;
+  peerUsername: string;
+  direction: 'incoming' | 'outgoing';
+  startedAt: string;
+  endedAt: string | null;
+  duration: number | null;
+  status: 'missed' | 'completed' | 'rejected' | 'cancelled';
+}
+
 // ─── Database ───────────────────────────────────────────────────────────────
 
 class ChatDatabase extends Dexie {
@@ -60,6 +72,7 @@ class ChatDatabase extends Dexie {
   rooms!: EntityTable<StoredRoom, 'id'>;
   keys!: EntityTable<StoredKey, 'channelId'>;
   pendingOps!: EntityTable<PendingOp, 'id'>;
+  calls!: EntityTable<StoredCall, 'id'>;
 
   constructor() {
     super('zevra-chat');
@@ -69,6 +82,10 @@ class ChatDatabase extends Dexie {
       rooms: 'id, lastMessageAt, unreadCount',
       keys: 'channelId',
       pendingOps: 'id, channelId, status, createdAt',
+    });
+
+    this.version(2).stores({
+      calls: 'id, peerId, startedAt, status',
     });
   }
 }
@@ -240,12 +257,47 @@ export async function clearAll(): Promise<void> {
   const database = getDB();
   await database.transaction(
     'rw',
-    [database.messages, database.rooms, database.keys, database.pendingOps],
+    [database.messages, database.rooms, database.keys, database.pendingOps, database.calls],
     async () => {
       await database!.messages.clear();
       await database!.rooms.clear();
       await database!.keys.clear();
       await database!.pendingOps.clear();
+      await database!.calls.clear();
     },
   );
+}
+
+// ─── Call Helpers ────────────────────────────────────────────────────────────
+
+export async function saveCall(call: StoredCall): Promise<void> {
+  const database = getDB();
+  await database.calls.put(call);
+}
+
+export async function getCalls(): Promise<StoredCall[]> {
+  const database = getDB();
+  return database.calls.orderBy('startedAt').reverse().toArray();
+}
+
+export async function getCall(callId: string): Promise<StoredCall | undefined> {
+  const database = getDB();
+  return database.calls.get(callId);
+}
+
+export async function updateCall(callId: string, updates: Partial<StoredCall>): Promise<void> {
+  const database = getDB();
+  await database.calls.update(callId, updates);
+}
+
+export async function deleteCall(callId: string): Promise<void> {
+  const database = getDB();
+  await database.calls.delete(callId);
+}
+
+export async function searchCalls(query: string): Promise<StoredCall[]> {
+  const database = getDB();
+  const lower = query.toLowerCase();
+  const all = await database.calls.toArray();
+  return all.filter((c) => c.peerUsername.toLowerCase().includes(lower));
 }
