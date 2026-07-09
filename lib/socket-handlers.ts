@@ -8,6 +8,7 @@ import {
   incrementRoomUnread,
   type StoredMessage,
 } from './db';
+import { setupWebRTCSocketHandlers } from './webrtc';
 
 // ─── Bind Socket Events → Zustand Store ─────────────────────────────────────
 
@@ -128,6 +129,10 @@ export function bindSocketHandlers(socket: AppSocket) {
 
   socket.on(SOCKET_EVENTS.USER_JOINED, () => {});
   socket.on(SOCKET_EVENTS.USER_LEFT, () => {});
+
+  // ─── Call Events ─────────────────────────────────────────────────
+
+  setupWebRTCSocketHandlers(socket);
 
   // ─── Heartbeat ───────────────────────────────────────────────────
 

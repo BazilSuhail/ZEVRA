@@ -49,6 +49,57 @@ export interface ServerToClientEvents {
     channelId: string;
   }) => void;
   [SOCKET_EVENTS.HEARTBEAT_ACK]: (data: { timestamp: number }) => void;
+
+  // Calls
+  [SOCKET_EVENTS.CALL_METHOD_SELECTED]: (data: {
+    callId: string;
+    method: 'WEBRTC' | 'LIVEKIT';
+    targetUserId: string;
+    targetUsername: string;
+  }) => void;
+  [SOCKET_EVENTS.CALL_INCOMING]: (data: {
+    callId: string;
+    callerId: string;
+    callerUsername: string;
+    method?: string;
+  }) => void;
+  [SOCKET_EVENTS.CALL_ACCEPTED]: (data: { callId: string }) => void;
+  [SOCKET_EVENTS.CALL_REJECTED]: (data: { callId: string }) => void;
+  [SOCKET_EVENTS.CALL_HANGUP_RECV]: (data: { callId: string }) => void;
+  [SOCKET_EVENTS.CALL_OFFER_RECV]: (data: {
+    callId: string;
+    offer: RTCSessionDescriptionInit;
+    callerId: string;
+    callerUsername: string;
+  }) => void;
+  [SOCKET_EVENTS.CALL_ANSWER_RECV]: (data: {
+    callId: string;
+    answer: RTCSessionDescriptionInit;
+  }) => void;
+  [SOCKET_EVENTS.CALL_ICE_CANDIDATE_RECV]: (data: {
+    callId: string;
+    candidate: RTCIceCandidateInit;
+  }) => void;
+  [SOCKET_EVENTS.LIVEKIT_TOKEN_REQUEST]: (data: {
+    callId: string;
+    roomName: string;
+    serverUrl: string;
+    token: string;
+  }) => void;
+  [SOCKET_EVENTS.LIVEKIT_INCOMING]: (data: {
+    callId: string;
+    roomName: string;
+    serverUrl: string;
+    token: string;
+    callerUsername: string;
+  }) => void;
+  [SOCKET_EVENTS.LIVEKIT_GROUP_INVITE]: (data: {
+    callId: string;
+    roomName: string;
+    serverUrl: string;
+    token: string;
+    inviterUsername: string;
+  }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -113,6 +164,32 @@ export interface ClientToServerEvents {
   ) => void;
   [SOCKET_EVENTS.TYPING_START]: (data: { channelId: string }) => void;
   [SOCKET_EVENTS.TYPING_STOP]: (data: { channelId: string }) => void;
+
+  // Calls
+  [SOCKET_EVENTS.CALL_INITIATE]: (data: {
+    targetUserIds: string[];
+    type: 'DM' | 'GROUP';
+  }) => void;
+  [SOCKET_EVENTS.CALL_ACCEPT]: (data: { callId: string }) => void;
+  [SOCKET_EVENTS.CALL_REJECT]: (data: { callId: string }) => void;
+  [SOCKET_EVENTS.CALL_HANGUP]: (data: { callId: string; targetUserId: string }) => void;
+  [SOCKET_EVENTS.CALL_OFFER]: (data: {
+    callId: string;
+    offer: RTCSessionDescriptionInit;
+    targetUserId: string;
+  }) => void;
+  [SOCKET_EVENTS.CALL_ANSWER]: (data: {
+    callId: string;
+    answer: RTCSessionDescriptionInit;
+    targetUserId: string;
+  }) => void;
+  [SOCKET_EVENTS.CALL_ICE_CANDIDATE]: (data: {
+    callId: string;
+    candidate: RTCIceCandidateInit;
+    targetUserId: string;
+  }) => void;
+  [SOCKET_EVENTS.CALL_LIVEKIT_FALLBACK]: (data: { callId: string }) => void;
+  [SOCKET_EVENTS.CALL_LIVEKIT_JOIN_GROUP]: (data: { callId: string }) => void;
 }
 
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
