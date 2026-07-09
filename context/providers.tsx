@@ -6,6 +6,8 @@ import { bindSocketHandlers, unbindSocketHandlers } from '@/lib/socket-handlers'
 import { useAuthStore } from '@/context/stores/auth-store';
 import { useSocketStore } from '@/context/stores/socket-store';
 import { setTokens, loadRefreshToken, api } from '@/utils/api';
+import IncomingCallToast from '@/components/calls/IncomingCallToast';
+import ActiveCallOverlay from '@/components/calls/ActiveCallOverlay';
 
 // ─── Socket Manager ─────────────────────────────────────────────────────────
 
@@ -115,5 +117,11 @@ export function Providers({ children }: { children: ReactNode }) {
   useAuthInit();
   useSocketConnection();
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <IncomingCallToast />
+      <ActiveCallOverlay />
+    </>
+  );
 }

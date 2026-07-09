@@ -27,6 +27,7 @@ import {
   saveMessage,
   type StoredMessage,
 } from "@/lib/db";
+import CallButton from "@/components/calls/CallButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -492,6 +493,12 @@ export default function DMChatPage() {
           <span className="hidden items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 sm:flex dark:bg-emerald-950/40 dark:text-emerald-400">
             <FiShield /> end-to-end encrypted
           </span>
+          {otherMember && (
+            <CallButton
+              targetUserIds={[otherMember.id]}
+              type="DM"
+            />
+          )}
           <button className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
             <FiMoreHorizontal />
           </button>

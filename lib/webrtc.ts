@@ -13,6 +13,14 @@ const STUN_SERVERS: RTCIceServer[] = [
 const ICE_CANDIDATE_BUFFER_MS = 500;
 const SDP_TIMEOUT_MS = 10000;
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+export function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
 // ─── Peer Connection Factory ────────────────────────────────────────────────
 
 export function createPeerConnection(): RTCPeerConnection {
