@@ -57,8 +57,8 @@ export default function CallButton({
 
   const sizeClasses =
     size === "sm"
-      ? "rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-      : "rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800";
+      ? "rounded-lg p-2 text-zinc-400 hover:bg-purple-100 hover:text-purple-600 dark:hover:bg-purple-900/30 dark:hover:text-purple-400"
+      : "rounded-lg p-2 text-zinc-400 hover:bg-purple-100 hover:text-purple-600 dark:hover:bg-purple-900/30 dark:hover:text-purple-400";
 
   const iconSize = size === "sm" ? "h-4 w-4" : "h-[18px] w-[18px]";
 

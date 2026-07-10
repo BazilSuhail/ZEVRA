@@ -1,18 +1,26 @@
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,400&display=swap');
+
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ─── Light Mode (Default) ─────────────────────────────────────── */
 :root {
   /* Backgrounds */
-  --bg-primary: #070514;
-  --bg-secondary: #0f0b24;
-  --bg-surface: #171238;
+  --bg-primary: #fafafa;
+  --bg-secondary: #f4f4f5;
+  --bg-surface: #ffffff;
+  --bg-card: #f4f4f5;
+  --bg-inset: #e4e4e7;
+  --bg-input: rgba(255, 255, 255, 0.8);
 
   /* Text */
-  --text-primary: #f9fafb;
-  --text-secondary: #c084fc;
-  --text-muted: #818cf8;
+  --text-primary: #18181b;
+  --text-secondary: #7c3aed;
+  --text-muted: #71717a;
   --text-white: #ffffff;
+  --text-body: rgba(63, 63, 70, 0.8);
+  --text-label: rgba(124, 58, 237, 0.9);
 
   /* Brand — Purple (primary) */
   --brand: #7c3aed;
@@ -24,15 +32,72 @@
   --accent-hover: #4f46e5;
   --accent-light: #818cf8;
 
+  /* Purple Scale */
+  --purple-300: #c084fc;
+  --purple-400: #a855f7;
+  --purple-500: #a855f7;
+  --purple-600: #9333ea;
+  --purple-900: rgba(124, 58, 237, 0.1);
+  --purple-950: rgba(124, 58, 237, 0.15);
+
+  /* Indigo Scale */
+  --indigo-600: #4f46e5;
+
   /* Message Bubbles */
   --bubble-sent: #7c3aed;
-  --bubble-received: #171238;
+  --bubble-received: #f4f4f5;
 
   /* Borders */
-  --border: rgba(129, 140, 248, 0.2);
+  --border: rgba(228, 228, 231, 0.8);
+  --border-purple: rgba(124, 58, 237, 0.3);
+  --border-purple-focus: #7c3aed;
 
-  /* Default System Font Stack */
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Glows */
+  --glow-purple: rgba(124, 58, 237, 0.08);
+  --glow-indigo: rgba(99, 102, 241, 0.08);
+  --glow-center: rgba(124, 58, 237, 0.05);
+
+  /* Dot Grid */
+  --dot-color: rgba(124, 58, 237, 0.15);
+}
+
+/* ─── Dark Mode ────────────────────────────────────────────────── */
+.dark {
+  /* Backgrounds — Zinc */
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --bg-surface: #27272a;
+  --bg-card: #1f1f23;
+  --bg-inset: #0f0f12;
+  --bg-input: rgba(0, 0, 0, 0.6);
+
+  /* Text */
+  --text-primary: #fafafa;
+  --text-secondary: #c084fc;
+  --text-muted: #a1a1aa;
+  --text-white: #ffffff;
+  --text-body: rgba(228, 228, 231, 0.8);
+  --text-label: rgba(192, 132, 252, 0.9);
+
+  /* Purple Scale */
+  --purple-900: rgba(88, 28, 135, 0.3);
+  --purple-950: rgba(59, 7, 100, 0.6);
+
+  /* Message Bubbles */
+  --bubble-received: #27272a;
+
+  /* Borders — Zinc */
+  --border: rgba(63, 63, 70, 0.6);
+  --border-purple: rgba(168, 85, 247, 0.3);
+  --border-purple-focus: #a855f7;
+
+  /* Glows */
+  --glow-purple: rgba(147, 51, 234, 0.15);
+  --glow-indigo: rgba(79, 70, 229, 0.3);
+  --glow-center: rgba(59, 7, 100, 0.2);
+
+  /* Dot Grid */
+  --dot-color: rgba(147, 51, 234, 0.35);
 }
 
 /* ─── Dark Neumorphism (Without Shadows) ────────────────────────── */
@@ -78,28 +143,45 @@
   --color-bg-primary: var(--bg-primary);
   --color-bg-secondary: var(--bg-secondary);
   --color-bg-surface: var(--bg-surface);
+  --color-bg-card: var(--bg-card);
+  --color-bg-inset: var(--bg-inset);
+  --color-bg-input: var(--bg-input);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
   --color-text-white: var(--text-white);
+  --color-text-body: var(--text-body);
+  --color-text-label: var(--text-label);
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
   --color-brand-light: var(--brand-light);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-light: var(--accent-light);
+  --color-purple-300: var(--purple-300);
+  --color-purple-400: var(--purple-400);
+  --color-purple-500: var(--purple-500);
+  --color-purple-600: var(--purple-600);
+  --color-purple-900: var(--purple-900);
+  --color-purple-950: var(--purple-950);
+  --color-indigo-600: var(--indigo-600);
+  --color-border: var(--border);
+  --color-border-purple: var(--border-purple);
+  --color-border-purple-focus: var(--border-purple-focus);
+  --color-glow-purple: var(--glow-purple);
+  --color-glow-indigo: var(--glow-indigo);
+  --color-glow-center: var(--glow-center);
+  --color-dot-color: var(--dot-color);
   --font-sans: var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-body { 
+body {
+  font-family: 'Satoshi', sans-serif;
+  background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: var(--font-sans);
-  background-color: #070514;
 }
 
 .auth-page {
   color-scheme: dark;
 }
-
-

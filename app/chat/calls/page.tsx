@@ -3,8 +3,9 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { FiArrowLeft, FiSearch, FiPhone, FiVideo } from "react-icons/fi";
-import { getCalls, searchCalls, type StoredCall } from "@/lib/db";
+import { getCalls, fetchAndCacheCallHistory, searchCalls, type StoredCall } from "@/lib/db";
 import { formatDuration } from "@/lib/webrtc";
+import { useAuthStore } from "@/context/stores/auth-store";
 
 type Filter = "all" | "incoming" | "outgoing" | "missed";
 
@@ -12,7 +13,9 @@ export default function CallLogsPage() {
   const [calls, setCalls] = useState<StoredCall[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const userId = useAuthStore((s) => s.user?.id);
 
   useEffect(() => {
     loadCalls();
@@ -20,10 +23,30 @@ export default function CallLogsPage() {
 
   const loadCalls = async () => {
     setLoading(true);
+    setFetchError(false);
     try {
-      const all = await getCalls();
-      setCalls(all);
-    } catch {}
+      // Check cache first
+      const cached = await getCalls();
+      if (cached.length > 0) {
+        setCalls(cached);
+        setLoading(false);
+        // Still refresh from server in background
+        if (userId) {
+          fetchAndCacheCallHistory(userId).then((fresh) => setCalls(fresh)).catch(() => {});
+        }
+        return;
+      }
+
+      // Cache empty — hit server
+      if (userId) {
+        const serverCalls = await fetchAndCacheCallHistory(userId);
+        setCalls(serverCalls);
+      }
+    } catch {
+      setFetchError(true);
+      const cached = await getCalls();
+      setCalls(cached);
+    }
     setLoading(false);
   };
 
@@ -117,7 +140,32 @@ export default function CallLogsPage() {
       </div>
 
       {/* Call list */}
-      <div className="flex-1 overflow-y-auto px-2 py-2">
+      <div
+        className="call-list-scroll flex-1 overflow-y-auto px-2 py-2"
+        style={{
+          scrollbarWidth: "thin",
+          scrollbarColor: "rgb(161 161 170 / 0.3) transparent",
+        }}
+      >
+        <style>{`
+          .call-list-scroll::-webkit-scrollbar { width: 6px; }
+          .call-list-scroll::-webkit-scrollbar-track { background: transparent; }
+          .call-list-scroll::-webkit-scrollbar-thumb {
+            background: rgb(161 161 170 / 0.3);
+            border-radius: 9999px;
+          }
+          .call-list-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgb(161 161 170 / 0.5);
+          }
+          @media (prefers-color-scheme: dark) {
+            .call-list-scroll::-webkit-scrollbar-thumb {
+              background: rgb(82 82 91 / 0.4);
+            }
+            .call-list-scroll::-webkit-scrollbar-thumb:hover {
+              background: rgb(82 82 91 / 0.6);
+            }
+          }
+        `}</style>
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-600" />
@@ -128,6 +176,11 @@ export default function CallLogsPage() {
             <p className="text-sm font-medium">
               {query ? "No calls found" : "No call history yet"}
             </p>
+            {fetchError && (
+              <p className="mt-1 text-xs text-zinc-500">
+                Showing cached data — couldn&apos;t reach server
+              </p>
+            )}
           </div>
         ) : (
           calls.map((call) => (

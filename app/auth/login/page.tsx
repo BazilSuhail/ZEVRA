@@ -9,13 +9,7 @@ import { api, setTokens } from "@/utils";
 import { srpClient } from "@/utils/srp";
 import Link from "next/link";
 import Image from "next/image";
-import dynamic from "next/dynamic";
-
-const JellyBlobMascot = dynamic(
-  () => import("feral-blob").then((mod) => mod.JellyBlobMascot),
-  { ssr: false }
-);
-import "feral-blob/blob.css";
+import ClientBlob from "@/components/auth/ClientBlob";
 
 type BlobMood = "neutral" | "happy" | "sad" | "angry" | "hmm" | "sideEye" | "password";
 
@@ -104,7 +98,6 @@ export default function LoginPage() {
 
       setTokens(finishRes.accessToken, finishRes.refreshToken);
       setAuth(finishRes.user, finishRes.accessToken);
-      setBlobMood("happy");
       router.push("/chat");
     } catch (err: any) {
       const msg =
@@ -119,7 +112,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="auth-page relative h-screen w-screen overflow-hidden text-slate-100 flex flex-col justify-between p-4 sm:p-6">
+    <div className="auth-page relative text-white h-screen w-screen overflow-hidden flex flex-col justify-between p-4 sm:p-6" style={{ colorScheme: 'dark' }}>
       <div className="absolute inset-0 -z-10 bg-zinc-950">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-zinc-950 to-purple-950/80" />
         <div
@@ -129,8 +122,8 @@ export default function LoginPage() {
             backgroundSize: "28px 28px",
           }}
         />
-        <div className="absolute -left-20 -top-20 h-96 w-96 rounded-full bg-purple-900/15 blur-3xl" />
-        <div className="absolute -bottom-20 -right-20 h-96 w-96 rounded-full bg-indigo-950/30 blur-3xl" />
+        <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-purple-900/15 blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 h-96 w-96 rounded-full bg-indigo-950/30 blur-3xl" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-80 w-80 rounded-full bg-purple-950/20 blur-3xl" />
       </div>
 
@@ -160,29 +153,29 @@ export default function LoginPage() {
               <h1 className="text-2xl xl:text-3xl font-bold text-white tracking-tight leading-tight">
                 Welcome Back
               </h1>
-              <p className="mt-1 text-xs sm:text-sm text-purple-200/80 leading-relaxed">
+              <p className="mt-1 text-xs sm:text-sm text-white leading-relaxed">
                 Unlock your end-to-end encrypted session safely with Helmet.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 mb-4 justify-center">
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-900/30 border border-purple-500/30 text-xs font-medium text-purple-300">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-900 border border-purple-500/30 text-xs font-medium text-purple-300">
                 <FiShield className="h-3.5 w-3.5 text-purple-400" />
                 Zero-Knowledge
               </span>
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-900/30 border border-indigo-500/30 text-xs font-medium text-indigo-300">
-                <FiKey className="h-3.5 w-3.5 text-indigo-400" />
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-900 border border-accent/30 text-xs font-medium text-accent-light">
+                <FiKey className="h-3.5 w-3.5 text-accent-light" />
                 Private Keys
               </span>
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-900/30 border border-violet-500/30 text-xs font-medium text-violet-300">
-                <FiZap className="h-3.5 w-3.5 text-violet-400" />
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-950 border border-purple-400/30 text-xs font-medium text-purple-300">
+                <FiZap className="h-3.5 w-3.5 text-purple-400" />
                 Secure Auth
               </span>
             </div>
 
             <div className="h-48 w-48 xl:h-100 xl:w-110 mx-auto transition-transform duration-300 hover:scale-105">
               <MotionConfig transition={{ type: "tween", duration: 0.4, ease: "easeInOut" }}>
-                <JellyBlobMascot mood={blobMood} gaze={blobGaze} />
+                <ClientBlob mood={blobMood} gaze={blobGaze} />
               </MotionConfig>
             </div>
 
@@ -196,24 +189,24 @@ export default function LoginPage() {
             </p>
           </motion.div>
 
-          <div className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1px] h-2/3 bg-gradient-to-b from-transparent via-purple-500/40 to-transparent pointer-events-none z-20" />
+          <div className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1px] h-2/3 bg-gradient-to-b from-transparent via-purple-400/40 to-transparent pointer-events-none z-20" />
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-md mx-auto lg:order-2"
           >
-            <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950/60 border border-purple-800/40 text-xs text-purple-300">
+            <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950 border border-purple-800/40 text-xs text-purple-300">
               <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
               Identity Verification
             </div>
 
             <h2 className="mb-1 text-2xl font-bold text-white">Sign in</h2>
-            <p className="mb-4 text-xs sm:text-sm text-purple-200/70">
+            <p className="mb-4 text-xs sm:text-sm text-white">
               Enter your credentials below to access your account.
             </p>
 
-            <div className="w-[50%] mb-4 lg:mb-12 bg-gradient-to-r from-purple-300 to-indigo-900 h-0.5" />
+            <div className="w-[50%] mb-4 lg:mb-12 bg-gradient-to-r from-purple-300 to-indigo-600 h-0.5" />
 
             <AnimatePresence>
               {error && (
@@ -234,7 +227,7 @@ export default function LoginPage() {
                 <label className="mb-3 block text-xs font-medium text-purple-200/90">
                   Username
                 </label>
-                <div className="flex items-center gap-2 rounded-xl bg-black/60 border-2 border-purple-500/30 px-3.5  py-4 text-[15px]  transition-all focus-within:border-purple-500 focus-within:ring-1 focus-within:ring-purple-500/40">
+                <div className="flex items-center gap-2 bg-black/60  rounded-xl border-2 border-border-purple px-3.5 py-4 text-[15px] transition-all focus-within:border-border-purple-focus focus-within:ring-1 focus-within:ring-border-purple-focus/40">
                   <FiUser className="h-4 w-4 text-purple-400 shrink-0" />
                   <input
                     type="text"
@@ -245,7 +238,7 @@ export default function LoginPage() {
                     placeholder="Enter your username"
                     required
                     minLength={3}
-                    className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none w-full"
+                    className="flex-1 bg-transparent text-sm text-white placeholder-text-muted outline-none w-full"
                   />
                 </div>
               </div>
@@ -262,7 +255,7 @@ export default function LoginPage() {
                     Forgot?
                   </Link>
                 </div>
-                <div className="flex items-center gap-2 rounded-xl bg-black/60 border-2 border-purple-500/30 px-3.5 py-4 text-[15px] transition-all focus-within:border-purple-500 focus-within:ring-1 focus-within:ring-purple-500/40">
+                <div className="flex items-center gap-2 rounded-xl bg-black/60  border-2 border-border-purple px-3.5 py-4 text-[15px] transition-all focus-within:border-border-purple-focus focus-within:ring-1 focus-within:ring-border-purple-focus/40">
                   <FiLock className="h-4 w-4 text-purple-400 shrink-0" />
                   <input
                     type="password"
@@ -273,7 +266,7 @@ export default function LoginPage() {
                     placeholder="••••••••"
                     required
                     minLength={8}
-                    className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none w-full"
+                    className="flex-1 bg-transparent text-sm text-white placeholder-text-muted outline-none w-full"
                   />
                 </div>
               </div>
@@ -282,7 +275,7 @@ export default function LoginPage() {
                 {...buttonAnimation}
                 type="submit"
                 disabled={loading}
-                className="flex w-full mt-8 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 py-3.5 text-md font-semibold text-white shadow-lg shadow-purple-950/50 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 "
+                className="flex w-full mt-8 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-accent py-3.5 text-md font-semibold text-text-white shadow-lg shadow-purple-950/50 hover:from-brand-hover hover:to-accent-hover disabled:opacity-50"
               >
                 {loading ? (
                   <>
@@ -297,7 +290,7 @@ export default function LoginPage() {
               </motion.button>
             </form>
 
-            <p className="mt-4 text-center text-xs text-purple-200/60">
+            <p className="mt-4 text-center text-xs text-text-body">
               Don&apos;t have an account?{" "}
               <Link
                 href="/auth/register"

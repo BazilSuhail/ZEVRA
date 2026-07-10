@@ -36,7 +36,7 @@ export default function CallEndedOverlay() {
         >
           <div
             onClick={dismissCallEnded}
-            className="flex cursor-pointer items-center gap-3 rounded-2xl bg-zinc-900/95 px-5 py-3.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl"
+            className="flex cursor-pointer items-center gap-3 rounded-2xl bg-zinc-900/95 px-5 py-3.5 shadow-2xl ring-1 ring-zinc-700/50 backdrop-blur-xl"
           >
             {/* Icon */}
             <div

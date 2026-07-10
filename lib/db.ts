@@ -301,3 +301,63 @@ export async function searchCalls(query: string): Promise<StoredCall[]> {
   const all = await database.calls.toArray();
   return all.filter((c) => c.peerUsername.toLowerCase().includes(lower));
 }
+
+// ─── Server Call History ─────────────────────────────────────────────────────
+
+interface ServerCallLog {
+  id: string;
+  type: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+  duration: number | null;
+  room_name: string | null;
+  caller_id: string;
+  caller_username: string;
+  callee_id: string;
+  callee_username: string;
+  participants: Array<{
+    userId: string;
+    username: string;
+    joinedAt: string;
+    leftAt: string | null;
+    duration: number | null;
+  }>;
+}
+
+interface CallHistoryResponse {
+  calls: ServerCallLog[];
+  page: number;
+  hasMore: boolean;
+}
+
+export async function fetchAndCacheCallHistory(
+  userId: string,
+  page = 1,
+  limit = 50,
+): Promise<StoredCall[]> {
+  const { api } = await import('@/utils/api');
+
+  const res = await api.get<CallHistoryResponse>(
+    `/calls/history?page=${page}&limit=${limit}`,
+  );
+
+  if (!res?.calls) return getCalls();
+
+  const stored: StoredCall[] = res.calls.map((c) => ({
+    id: c.id,
+    type: c.type as 'WEBRTC' | 'LIVEKIT',
+    peerId: c.caller_id === userId ? c.callee_id : c.caller_id,
+    peerUsername: c.caller_id === userId ? c.callee_username : c.caller_username,
+    direction: c.caller_id === userId ? 'outgoing' : 'incoming',
+    startedAt: c.started_at,
+    endedAt: c.ended_at,
+    duration: c.duration,
+    status: c.status as StoredCall['status'],
+  }));
+
+  const database = getDB();
+  await database.calls.bulkPut(stored);
+
+  return stored;
+}

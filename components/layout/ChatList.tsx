@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FiUsers, FiSearch, FiMessageSquare } from "react-icons/fi";
@@ -57,8 +57,7 @@ interface InboxRow {
   lastMessageTag: string | null;
   lastMessageSenderKeyEpoch: number | null;
   createdAt: string;
-  // Members for DM online status (populated from members endpoint)
-  members?: { id: string; username: string; status: string }[];
+  dmPeerId: string | null;
 }
 
 type FilterTab = "all" | "direct" | "group";
@@ -76,8 +75,6 @@ export default function ChatList() {
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
-  const roomsRef = useRef(rooms);
-  roomsRef.current = rooms;
 
   // ─── Decrypt a single preview ────────────────────────────────────────
   const decryptPreview = useCallback(
@@ -146,26 +143,18 @@ export default function ChatList() {
           setNameMap((prev) => ({ ...prev, ...updates }));
         }
 
-        // Fetch online status for DM contacts
-        const dmRooms = data.filter((r) => r.type === "DIRECT");
-        if (dmRooms.length > 0) {
+        // Single batched online check using dmPeerId from server
+        const peerIds = data
+          .filter((r) => r.type === "DIRECT" && r.dmPeerId)
+          .map((r) => r.dmPeerId!);
+        if (peerIds.length > 0) {
           try {
-            const memberIds: string[] = [];
-            for (const r of dmRooms) {
-              const channel = await api.get<any>(`/channels/${r.id}`);
-              if (channel?.members) {
-                const other = channel.members.find((m: any) => m.id !== user?.id);
-                if (other) memberIds.push(other.id);
-              }
-            }
-            if (memberIds.length > 0) {
-              const res = await api.get<{ online: string[] }>(
-                `/api/users/online?ids=${memberIds.join(",")}`,
-              );
-              setOnlineUsers(new Set(res.online));
-            }
-          } catch {
-            // Silent - online status is non-critical
+            const res = await api.get<{ online: string[] }>(
+              `/api/users/online?ids=${peerIds.join(",")}`,
+            );
+            setOnlineUsers(new Set(res.online));
+          } catch (e) {
+            console.warn('[ChatList] Online status check failed:', e);
           }
         }
       })
@@ -211,31 +200,32 @@ export default function ChatList() {
     };
   }, [loaded]);
 
-  // ─── Refresh online status periodically ───────────────────────────────
+  // ─── Real-time presence via socket events ────────────────────────────
   useEffect(() => {
     if (!loaded) return;
-    const interval = setInterval(async () => {
-      const dmRooms = roomsRef.current.filter((r) => r.type === "DIRECT");
-      if (dmRooms.length === 0) return;
-      try {
-        const memberIds: string[] = [];
-        for (const r of dmRooms) {
-          const channel = await api.get<any>(`/channels/${r.id}`);
-          if (channel?.members) {
-            const other = channel.members.find((m: any) => m.id !== user?.id);
-            if (other) memberIds.push(other.id);
-          }
-        }
-        if (memberIds.length > 0) {
-          const res = await api.get<{ online: string[] }>(
-            `/api/users/online?ids=${memberIds.join(",")}`,
-          );
-          setOnlineUsers(new Set(res.online));
-        }
-      } catch {}
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [loaded, user?.id]);
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleUserJoined = (data: { userId: string }) => {
+      setOnlineUsers((prev) => new Set([...prev, data.userId]));
+    };
+
+    const handleUserLeft = (data: { userId: string }) => {
+      setOnlineUsers((prev) => {
+        const next = new Set(prev);
+        next.delete(data.userId);
+        return next;
+      });
+    };
+
+    socket.on(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
+    socket.on(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
+
+    return () => {
+      socket.off(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
+      socket.off(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
+    };
+  }, [loaded]);
 
   // ─── Derived ──────────────────────────────────────────────────────────
   const displayName = (room: InboxRow): string => {
@@ -266,16 +256,7 @@ export default function ChatList() {
 
   const getDmOtherUserId = (room: InboxRow): string | null => {
     if (room.type !== "DIRECT") return null;
-    // From members array if available
-    if (room.members) {
-      const other = room.members.find((m) => m.id !== user?.id);
-      return other?.id || null;
-    }
-    // Fallback: use lastMessageSenderId if it's not the current user
-    if (room.lastMessageSenderId && room.lastMessageSenderId !== user?.id) {
-      return room.lastMessageSenderId;
-    }
-    return null;
+    return room.dmPeerId || null;
   };
 
   const sorted = useMemo(() => {
@@ -297,18 +278,20 @@ export default function ChatList() {
     return result;
   }, [sorted, search, activeTab, nameMap, user?.id]);
 
+  // ChatList: bg light=#f4f4f5 (zinc-100) / dark=#18181b (zinc-900)
   return (
-    <div className="flex h-full w-full sm:w-70 lg:w-80 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <h2 className="mb-3 text-lg font-bold">Chats</h2>
-        <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
-          <FiSearch className="h-4 w-4 text-zinc-400" />
+    <div className="flex h-full w-full sm:w-70 lg:w-80 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-purple-100/40 dark:bg-zinc-900 shadow-sm dark:shadow-none">
+      <div className="border-b border-zinc-200 dark:border-zinc-800 px-4 py-3">
+        <h2 className="mb-3 text-lg font-bold text-zinc-900 dark:text-zinc-100">Chats</h2>
+        {/* Search: bg light=#f4f4f5 (zinc-100) / dark=#18181b (zinc-900) */}
+        <div className="flex items-center gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950 px-3 py-2 focus-within:border-purple-500 focus-within:ring-1 focus-within:ring-purple-500/40 transition-all">
+          <FiSearch className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search chats..."
-            className="flex-1 bg-transparent text-sm outline-none"
+            className="flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-100 outline-none placeholder-zinc-400 dark:placeholder-zinc-500"
           />
         </div>
       </div>
@@ -324,8 +307,8 @@ export default function ChatList() {
             onClick={() => setActiveTab(tab.key)}
             className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
               activeTab === tab.key
-                ? "border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                ? "border-b-2 border-purple-500 text-purple-600 dark:text-purple-400"
+                : "text-zinc-500 dark:text-zinc-400 hover:text-purple-600 dark:hover:text-purple-400"
             }`}
           >
             {tab.icon && <tab.icon className="h-3.5 w-3.5" />}
@@ -339,10 +322,11 @@ export default function ChatList() {
           <div className="space-y-3 p-4">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 animate-pulse">
-                <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                {/* Skeleton: bg light=#e4e4e7 (zinc-200) / dark=#3f3f46 (zinc-700) */}
+                <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-800" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-                  <div className="h-2.5 w-36 rounded bg-zinc-100 dark:bg-zinc-800" />
+                  <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-800" />
+                  <div className="h-2.5 w-36 rounded bg-zinc-100 dark:bg-zinc-950" />
                 </div>
               </div>
             ))}
@@ -350,7 +334,7 @@ export default function ChatList() {
         )}
 
         {loaded && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-zinc-400">
+          <div className="flex flex-col items-center justify-center py-12 text-zinc-400 dark:text-zinc-500">
             <FiUsers className="mb-3 h-8 w-8" />
             <p className="text-sm">
               {activeTab === "direct"
@@ -359,7 +343,7 @@ export default function ChatList() {
                   ? "No groups yet"
                   : "No conversations yet"}
             </p>
-            <p className="mt-1 text-xs text-zinc-300 dark:text-zinc-600">
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-600">
               Start a new chat from the sidebar
             </p>
           </div>
@@ -379,9 +363,9 @@ export default function ChatList() {
             <Link
               key={room.id}
               href={isGroup ? `/chat/group/${room.id}` : `/chat/dm/${room.id}`}
-              className={`flex items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50 ${
+              className={`flex items-center gap-3 border-b border-zinc-100 dark:border-zinc-800/50 px-4 py-3 transition-colors hover:bg-purple-100 dark:hover:bg-zinc-800/50 ${
                 pathname.includes(room.id)
-                  ? "bg-indigo-50 dark:bg-indigo-900/10"
+                  ? "bg-purple-100 dark:bg-zinc-800/50"
                   : ""
               }`}
             >
@@ -389,21 +373,21 @@ export default function ChatList() {
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${
                     colorClass ||
-                    "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
+                    "bg-purple-100 dark:bg-zinc-800 text-purple-600 dark:text-purple-400"
                   }`}
                 >
                   {isGroup ? <FiUsers className="h-4 w-4" /> : initial}
                 </div>
                 {/* Online dot */}
                 {isOnline && (
-                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 dark:border-zinc-900" />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-purple-100 dark:border-zinc-900 bg-emerald-500" />
                 )}
               </div>
               <div className="flex-1 overflow-hidden">
                 <div className="flex items-center justify-between">
-                  <span className="truncate text-sm font-medium">{name}</span>
+                  <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{name}</span>
                   {displayTime && (
-                    <span className="shrink-0 text-xs text-zinc-400">{displayTime}</span>
+                    <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">{displayTime}</span>
                   )}
                 </div>
                 <div className="flex items-center justify-between">
@@ -411,7 +395,7 @@ export default function ChatList() {
                     {preview}
                   </span>
                   {unread > 0 && (
-                    <span className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white">
+                    <span className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-600 text-[10px] font-bold text-white">
                       {unread}
                     </span>
                   )}

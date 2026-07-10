@@ -16,13 +16,7 @@ import {
 import { api } from "@/utils";
 import Link from "next/link";
 import Image from "next/image";
-import dynamic from "next/dynamic";
-
-const JellyBlobMascot = dynamic(
-  () => import("feral-blob").then((mod) => mod.JellyBlobMascot),
-  { ssr: false },
-);
-import "feral-blob/blob.css";
+import ClientBlob from "@/components/auth/ClientBlob";
 
 type BlobMood =
   | "neutral"
@@ -316,7 +310,7 @@ export default function RegisterPage() {
               <MotionConfig
                 transition={{ type: "tween", duration: 0.4, ease: "easeInOut" }}
               >
-                <JellyBlobMascot
+                <ClientBlob
                   mood={success ? "neutral" : blobMood}
                   gaze={blobGaze}
                 />

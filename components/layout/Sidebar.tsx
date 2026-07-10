@@ -20,6 +20,7 @@ import {
   FiLogOut,
   FiUsers,
   FiPhone,
+  FiLoader,
 } from "react-icons/fi";
 
 const bottomItems = [
@@ -37,12 +38,35 @@ export default function Sidebar() {
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const clearAllData = async () => {
+    // Clear IndexedDB
+    const databases = await indexedDB.databases();
+    await Promise.all(
+      databases.map((db) => {
+        if (db.name) {
+          return new Promise<void>((resolve, reject) => {
+            const req = indexedDB.deleteDatabase(db.name!);
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+            req.onblocked = () => resolve();
+          });
+        }
+      })
+    );
+    // Clear storage
+    localStorage.clear();
+    sessionStorage.clear();
+  };
 
   const handleLogout = async () => {
+    setLoggingOut(true);
     try {
       await api.post("/api/auth/logout");
     } catch {}
     disconnectSocket();
+    await clearAllData();
     logout();
     router.push("/auth/login");
   };
@@ -53,7 +77,12 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="flex h-full sm:w-15 lg:w-18 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 flex-col items-center py-3 ">
+      {/* 
+        Sidebar
+        bg: light=#ffffff (zinc-50) / dark=#27272a (zinc-800)
+        border: light=#e4e4e7 (zinc-200) / dark=#3f3f46 (zinc-700)
+      */}
+      <aside className="flex h-full sm:w-15 lg:w-18 border-r border-zinc-200 dark:border-zinc-800 bg-purple-100/40 dark:bg-zinc-900 flex-col items-center py-3 shadow-sm dark:shadow-none">
         {/* Top Brand Logo */}
         <div className="relative group mb-5">
           <Link
@@ -70,8 +99,9 @@ export default function Sidebar() {
             />
           </Link>
           <div className="pointer-events-none absolute left-full top-1/2 ml-3 hidden -translate-y-1/2 md:block z-50">
-            <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 opacity-0 shadow-lg ring-1 ring-zinc-200 transition-all duration-200 group-hover:opacity-100 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800">
-              <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+            {/* Tooltip: bg light=#f4f4f5 (zinc-100) / dark=#27272a (zinc-800) */}
+            <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 dark:text-zinc-100 opacity-0 shadow-lg ring-1 ring-zinc-200 dark:ring-zinc-800 transition-all duration-200 group-hover:opacity-100">
+              <div className="h-1.5 w-1.5 rounded-full bg-purple-500" />
               Home
             </div>
           </div>
@@ -83,15 +113,13 @@ export default function Sidebar() {
           <div className="relative group">
             <button
               onClick={() => setChatModalOpen(true)}
-              className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
-                "text-zinc-500 hover:bg-zinc-200/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100"
-              }`}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400 transition-all duration-200 hover:bg-purple-100 dark:hover:bg-zinc-800 hover:text-purple-600 dark:hover:text-purple-400"
             >
               <FiPlus className="h-5 w-5" />
             </button>
             <div className="pointer-events-none absolute left-full top-1/2 ml-3 hidden -translate-y-1/2 md:block z-50">
-              <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 opacity-0 shadow-lg ring-1 ring-zinc-200 transition-all duration-200 group-hover:opacity-100 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800">
-                <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+              <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 dark:text-zinc-100 opacity-0 shadow-lg ring-1 ring-zinc-200 dark:ring-zinc-800 transition-all duration-200 group-hover:opacity-100">
+                <div className="h-1.5 w-1.5 rounded-full bg-purple-500" />
                 New Chat
               </div>
             </div>
@@ -101,15 +129,13 @@ export default function Sidebar() {
           <div className="relative group">
             <button
               onClick={() => setGroupModalOpen(true)}
-              className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
-                "text-zinc-500 hover:bg-zinc-200/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100"
-              }`}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400 transition-all duration-200 hover:bg-purple-100 dark:hover:bg-zinc-800 hover:text-purple-600 dark:hover:text-purple-400"
             >
               <FiUsers className="h-5 w-5" />
             </button>
             <div className="pointer-events-none absolute left-full top-1/2 ml-3 hidden -translate-y-1/2 md:block z-50">
-              <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 opacity-0 shadow-lg ring-1 ring-zinc-200 transition-all duration-200 group-hover:opacity-100 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800">
-                <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+              <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 dark:text-zinc-100 opacity-0 shadow-lg ring-1 ring-zinc-200 dark:ring-zinc-800 transition-all duration-200 group-hover:opacity-100">
+                <div className="h-1.5 w-1.5 rounded-full bg-purple-500" />
                 New Group
               </div>
             </div>
@@ -131,15 +157,15 @@ export default function Sidebar() {
                   href={item.href}
                   className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
                     active
-                      ? "bg-zinc-200/80 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
-                      : "text-zinc-500 hover:bg-zinc-200/60 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100"
+                      ? "bg-purple-100 dark:bg-zinc-800 text-purple-600 dark:text-purple-400"
+                      : "text-zinc-500 dark:text-zinc-400 hover:bg-purple-100 dark:hover:bg-zinc-800 hover:text-purple-600 dark:hover:text-purple-400"
                   }`}
                 >
                   <item.icon className="h-5 w-5" />
                 </Link>
                 <div className="pointer-events-none absolute left-full top-1/2 ml-3 hidden -translate-y-1/2 md:block z-50">
-                  <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 opacity-0 shadow-lg ring-1 ring-zinc-200 transition-all duration-200 group-hover:opacity-100 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800">
-                    <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                  <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 dark:text-zinc-100 opacity-0 shadow-lg ring-1 ring-zinc-200 dark:ring-zinc-800 transition-all duration-200 group-hover:opacity-100">
+                    <div className="h-1.5 w-1.5 rounded-full bg-purple-500" />
                     {item.label}
                   </div>
                 </div>
@@ -149,17 +175,17 @@ export default function Sidebar() {
         </div>
 
         {/* User Profile + Logout */}
-        <div className="flex flex-col items-center gap-1.5 border-t border-zinc-200/80 pt-3 dark:border-zinc-800/80">
+        <div className="flex flex-col items-center gap-1.5 border-t border-zinc-200 dark:border-zinc-800 pt-3">
           <div className="relative group">
             <Link
               href="/chat/profile"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 text-sm font-semibold text-white shadow-xs transition-transform duration-200 hover:scale-105"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-brand to-accent text-sm font-semibold text-white shadow-xs transition-transform duration-200 hover:scale-105"
             >
               {user?.username?.[0]?.toUpperCase() || "U"}
             </Link>
             <div className="pointer-events-none absolute left-full top-1/2 ml-3 hidden -translate-y-1/2 md:block z-50">
-              <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 opacity-0 shadow-lg ring-1 ring-zinc-200 transition-all duration-200 group-hover:opacity-100 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-900 dark:text-zinc-100 opacity-0 shadow-lg ring-1 ring-zinc-200 dark:ring-zinc-800 transition-all duration-200 group-hover:opacity-100">
+                <div className="h-1.5 w-1.5 rounded-full bg-purple-500" />
                 {user?.username || "Profile"}
               </div>
             </div>
@@ -168,14 +194,19 @@ export default function Sidebar() {
           <div className="relative group">
             <button
               onClick={() => setLogoutModalOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-rose-50 hover:text-rose-600 dark:text-zinc-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-400"
+              disabled={loggingOut}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 dark:text-zinc-400 transition-all duration-200 hover:bg-purple-100 dark:hover:bg-zinc-800 hover:text-purple-600 dark:hover:text-purple-400 disabled:opacity-50"
             >
-              <FiLogOut className="h-5 w-5" />
+              {loggingOut ? (
+                <FiLoader className="h-5 w-5 animate-spin" />
+              ) : (
+                <FiLogOut className="h-5 w-5" />
+              )}
             </button>
             <div className="pointer-events-none absolute left-full top-1/2 ml-3 hidden -translate-y-1/2 md:block z-50">
-              <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-rose-600 opacity-0 shadow-lg ring-1 ring-zinc-200 transition-all duration-200 group-hover:opacity-100 dark:bg-zinc-900 dark:text-rose-400 dark:ring-zinc-800">
-                <div className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                Logout
+              <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 dark:bg-zinc-900 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-red-600 dark:text-red-400 opacity-0 shadow-lg ring-1 ring-zinc-200 dark:ring-zinc-600 transition-all duration-200 group-hover:opacity-100">
+                <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                {loggingOut ? "Logging out..." : "Logout"}
               </div>
             </div>
           </div>

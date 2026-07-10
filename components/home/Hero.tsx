@@ -1,251 +1,110 @@
 "use client";
 
-import { motion, Variants } from "motion/react";
-import {
-  FiArrowUpRight,
-  FiShield,
-  FiKey,
-  FiLock,
-  FiEyeOff,
-  FiCheckCircle,
-  FiGithub,
-} from "react-icons/fi";
+import React from "react";
+import { motion } from "motion/react";
+import RotatingText from "@/components/animations/RotatingText";
 
-const pathSelfDraw: Variants = {
-  hidden: {
-    pathLength: 0,
-    pathOffset: 0,
-    opacity: 0,
-  },
-  visible: {
-    pathLength: [0, 1, 1, 0],
-    pathOffset: [0, 0, 1, 1],
-    opacity: [0.5, 1, 1, 0.6],
-    transition: {
-      duration: 6,
-      repeat: Infinity,
-      ease: "easeInOut",
-      times: [0, 0.55, 0.85, 1],
-    },
-  },
-};
+const GLOW_BARS = [4, 9, 1,9];
 
 export default function Hero() {
   return (
-    <section className="relative z-10 w-full text-slate-100 font-sans flex flex-col justify-between px-4 sm:px-6 lg:pt-28 pb-12 box-border selection:bg-purple-600 selection:text-white" suppressHydrationWarning>
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-7xl mx-auto items-stretch">
-        {/* Left Column */}
-        <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="space-y-4 max-w-2xl"
-          >
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-purple-400/30 bg-purple-950/40 text-purple-300 text-xs font-semibold tracking-wide uppercase backdrop-blur-md">
-              <FiEyeOff className="w-4 h-4 text-indigo-400" />
-              <span>Zero-Knowledge Architecture</span>
-            </div>
-
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white">
-              Privacy is a Right, <br />
-              <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-300 bg-clip-text text-transparent">
-                Not a Feature.
-              </span>
-            </h1>
-
-            <p className="text-purple-200/80 text-base sm:text-lg leading-relaxed max-w-xl">
-              ZEVRA guarantees absolute communication privacy. Our servers never store plaintext keys, never read your messages, and process only cryptographically sealed data.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-4 pt-2">
-              <a
-                href="https://github.com/BazilSuhail/ZEVRA"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="neumorphic-button-dark text-white font-semibold text-sm px-6 py-3 rounded-xl transition-transform hover:scale-105 flex items-center gap-2 cursor-pointer"
-              >
-                <FiGithub className="w-4 h-4" /> View Source Code
-              </a>
-              <a
-                href="/architecture"
-                className="text-purple-200 border border-purple-500/30 bg-purple-950/30 hover:bg-purple-900/40 hover:border-purple-400/50 px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center gap-2 text-sm font-medium"
-              >
-                <span>Security Whitepaper</span>
-                <FiArrowUpRight className="w-4 h-4 text-purple-300" />
-              </a>
-            </div>
-          </motion.div>
-
-          {/* Security Protocol Metrics Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="neumorphic-card-dark rounded-2xl p-6 relative flex flex-col justify-between overflow-hidden min-h-60"
-          >
-            <motion.svg
-              viewBox="0 0 500 120"
-              className="w-full h-full stroke-purple-500/20 fill-none absolute inset-0 pointer-events-none"
-              strokeWidth="1"
-            >
-              <motion.path
-                variants={pathSelfDraw}
-                initial="hidden"
-                animate="visible"
-                strokeDasharray="4 4"
-                d="M 30 60 Q 150 10, 250 60 T 470 60"
-              />
-              <motion.path
-                variants={pathSelfDraw}
-                initial="hidden"
-                animate="visible"
-                d="M 60 90 L 180 30 L 320 30 L 440 90 Z"
-              />
-              <motion.circle
-                variants={pathSelfDraw}
-                initial="hidden"
-                animate="visible"
-                cx="250"
-                cy="60"
-                r="16"
-                stroke="#a855f7"
-                strokeWidth="1.5"
-              />
-            </motion.svg>
-
-            <div className="relative z-10 flex justify-between items-center text-xs font-mono text-purple-300/90 uppercase tracking-wider">
-              <span>Security Guarantees</span>
-              <span className="flex items-center gap-1.5 text-indigo-300 text-xs font-medium">
-                <FiCheckCircle className="w-3.5 h-3.5 text-purple-400" /> Encrypted Vault Active
-              </span>
-            </div>
-
-            <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-purple-100 pt-4">
-              <div className="neumorphic-inset-dark p-3.5 rounded-xl flex items-center gap-3">
-                <FiKey className="w-5 h-5 text-purple-400 shrink-0" />
-                <div>
-                  <div className="font-semibold text-white text-xs">
-                    Client-Side Keys
-                  </div>
-                  <div className="text-[11px] text-purple-300/70">
-                    Keys never leave device
-                  </div>
-                </div>
-              </div>
-
-              <div className="neumorphic-inset-dark p-3.5 rounded-xl flex items-center gap-3">
-                <FiShield className="w-5 h-5 text-indigo-400 shrink-0" />
-                <div>
-                  <div className="font-semibold text-white text-xs">
-                    Zero-Knowledge Database
-                  </div>
-                  <div className="text-[11px] text-purple-300/70">
-                    Stolen DB = Ciphertext payload
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Right Column - Cryptographic Vault Visual */}
+    <section className="relative min-h-screen   text-white flex flex-col justify-between overflow-hidden lg:py-32 select-none">
+      
+      {/* Background Gradients & Glows (Purple Theme - Inverted & Faded) */}
+      <div className="absolute top-0 left-0 right-0 h-[70%] bg-gradient-to-b from-[#a855f7]/10  to-transparent pointer-events-none blur-[140px]" />
+      {/* 3D Glass Lens Visuals */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        {/* Left Lens */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.7, delay: 0.3 }}
-          className="lg:col-span-5 neumorphic-card-dark rounded-2xl relative flex flex-col justify-between p-6 overflow-hidden min-h-[380px]"
-        >
-          <div className="absolute inset-0 flex items-center justify-center p-6 pointer-events-none">
-            <svg
-              viewBox="0 0 400 400"
-              className="w-full h-full fill-none max-w-[300px]"
-            >
-              <motion.polygon
-                variants={pathSelfDraw}
-                initial="hidden"
-                animate="visible"
-                points="200,20 350,100 350,300 200,380 50,300 50,100"
-                stroke="rgba(168, 85, 247, 0.45)"
-                strokeWidth="1.5"
-                strokeDasharray="600"
-              />
-              <motion.rect
-                variants={pathSelfDraw}
-                initial="hidden"
-                animate="visible"
-                x="150"
-                y="180"
-                width="100"
-                height="80"
-                rx="12"
-                stroke="#6366f1"
-                strokeWidth="1.5"
-                strokeDasharray="360"
-              />
-              <motion.path
-                variants={pathSelfDraw}
-                initial="hidden"
-                animate="visible"
-                stroke="#c084fc"
-                strokeWidth="1.5"
-                strokeDasharray="200"
-                d="M 165 180 V 145 A 35 35 0 0 1 235 145 V 180"
-              />
-              <motion.circle
-                variants={pathSelfDraw}
-                initial="hidden"
-                animate="visible"
-                cx="200"
-                cy="212"
-                r="8"
-                stroke="#a855f7"
-                strokeWidth="1.5"
-                strokeDasharray="60"
-              />
-              <motion.path
-                variants={pathSelfDraw}
-                initial="hidden"
-                animate="visible"
-                stroke="#a855f7"
-                strokeWidth="1.5"
-                strokeDasharray="40"
-                d="M 196 218 L 192 238 H 208 L 204 218"
-              />
-              <motion.path
-                variants={pathSelfDraw}
-                initial="hidden"
-                animate="visible"
-                stroke="rgba(99, 102, 241, 0.4)"
-                strokeWidth="1"
-                strokeDasharray="180"
-                d="M 200 20 V 110 M 200 260 V 380 M 50 100 L 150 180 M 350 100 L 250 180 M 50 300 L 150 260 M 350 300 L 250 260"
-              />
-            </svg>
-          </div>
+          animate={{ x: [-55, 0, 15, -55] }}
+          transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute left-[4%] top-[32%] w-[210px] h-[340px] rounded-[110px] border border-purple-500/15 bg-gradient-to-tr from-purple-500/10 via-purple-400/5 to-transparent backdrop-blur-md rotate-[-28deg] shadow-[inset_0_0_30px_rgba(168,85,247,0.12)]"
+        />
 
-          <div className="relative z-10 flex justify-between items-center">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-purple-500/30 bg-purple-950/60 text-xs font-mono text-purple-200 backdrop-blur-md">
-              <FiLock className="w-3.5 h-3.5 text-purple-400" /> AES-256-GCM / E2EE
-            </span>
-            <span className="flex h-3 w-3 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
-            </span>
-          </div>
+        {/* Center Middle Lens */}
+        <motion.div
+          animate={{ y: [-20, 25, -12,-20] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          className="absolute left-[20%] top-[22%] w-83 h-47  rounded-[100px] border border-purple-500/15 bg-gradient-to-b from-purple-500/10 via-purple-400/5 to-transparent backdrop-blur-md rotate-[14deg] shadow-[inset_0_0_30px_rgba(168,85,247,0.12)]"
+        />
 
-          <div className="relative z-10 space-y-2 mt-auto pt-24">
-            <h2 className="text-xl font-bold text-white leading-snug">
-              Uncompromising Zero-Trust
-            </h2>
-            <p className="text-purple-200/80 text-xs leading-relaxed">
-              Every message payload is encrypted client-side before transmission. Even in the event of a full server compromise, zero plaintexts are revealed.
-            </p>
-          </div>
-        </motion.div>
-      </main>
+        {/* Top Right Background Lens */}
+        <motion.div
+          animate={{ y: [14, 0, -24,14] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+          className="absolute left-[40%] top-[4%] w-[220px] h-[280px] rounded-[100px] border border-purple-400/15 bg-gradient-to-tl from-purple-500/10 via-purple-400/5 to-transparent backdrop-blur-md rotate-[38deg] shadow-[inset_0_0_30px_rgba(168,85,247,0.12)]"
+        />
+      </div>
 
-      <div className="w-full max-w-7xl mx-auto h-[1px] bg-gradient-to-r from-transparent via-purple-500/30 to-transparent mt-12" />
+      {/* Top Header Row */}
+      <div className="relative z-10 flex justify-between items-start w-full max-w-7xl mx-auto">
+        
+        {/* Top-Left Paragraph */}
+        <p className="text-text-body text-[13px] sm:text-sm max-w-[290px] leading-relaxed text-left m-0">
+          <span className="text-text-secondary font-semibold">Zevra Architecture,</span> engineered for absolute sovereign intelligence and cryptographic privacy.
+        </p>
+
+        {/* Top-Right Dark Preview Card */}
+        <div className="bg-bg-card border border-purple-900/40 p-2.5 rounded-2xl w-64 shadow-2xl flex flex-col gap-2.5">
+          <div className="relative w-full h-28 rounded-xl overflow-hidden bg-bg-inset flex items-center justify-center">
+            <style>{`
+              @keyframes barGlow {
+                0%, 100% { background: rgba(168,85,247,0.2); border-color: rgba(168,85,247,0.3); box-shadow: none; }
+                50% { background: rgba(168,85,247,0.8); border-color: rgba(192,132,252,1); box-shadow: 0 0 12px rgba(168,85,247,0.9); }
+              }
+            `}</style>
+            <div className="flex items-center justify-center gap-[3px] scale-90">
+              {[...Array(15)].map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-2.5 h-14 rounded-full border backdrop-blur-sm ${
+                    GLOW_BARS.includes(i) ? "border-purple-400/30" : "border-purple-400/30 bg-gradient-to-b from-purple-400/20 to-transparent"
+                  }`}
+                  style={{
+                    transform: `skewY(${i > 7 ? (i - 7) * 5 : (7 - i) * -5}deg)`,
+                    ...(GLOW_BARS.includes(i) && {
+                      animation: `barGlow 3s ease-in-out ${(GLOW_BARS.indexOf(i)) * 1}s infinite`,
+                    }),
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          <p className="text-purple-100 font-bold text-[11px] tracking-tight px-1 pb-0.5 text-left">
+            Zevra Intelligence, sovereign and encrypted
+          </p>
+        </div>
+      </div>
+
+      {/* Main Center Typography (Pinned to Right Side) */}
+      <div className="relative z-10 w-full max-w-7xl mx-auto pt-20  text-right flex flex-col items-end justify-end">
+          <h1 className="text-6xl flex items-center sm:text-8xl md:text-[110px] lg:text-[124px] font-semibold tracking-tight  text-white text-right self-end">
+          Sealed<p className="text-purple-300/30 tracking-normal font-light scale-y-[0.9] ml-2">-Private</p>
+        </h1>
+        <h2 className="text-6xl sm:text-8xl md:text-[110px] pb-8 lg:text-[90px] font-medium tracking-tighter leading-[0.9] text-right self-end overflow-hidden">
+          <RotatingText
+            texts={["Conversations", "Interactions", "Discussions"]}
+            mainClassName="text-purple-300/50 inline"
+            staggerDuration={0.05}
+            splitBy="characters"
+            transition={{ type: "spring", damping: 20, stiffness: 200 }}
+          />
+        </h2>
+      </div>
+
+      {/* Bottom Footer Section */}
+      <div className="relative z-10 w-full max-w-7xl mx-auto pt-6 border-t border-border">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          
+          <p className="text-[12px] sm:text-[13px] text-text-body max-w-xl leading-relaxed text-left">
+            Zevra Protocol unifies zero-knowledge privacy with decentralized language processing. End-to-end encrypted cognitive compute for the Web3 ecosystem.
+          </p>
+
+          <button className="bg-gradient-to-r from-brand to-accent text-text-white font-extrabold text-xs px-6 py-2.5 rounded-xl hover:from-brand-hover hover:to-accent-hover transition-all shadow-md active:scale-95 whitespace-nowrap">
+            Initiate Session
+          </button>
+        </div>
+      </div>
     </section>
   );
 }
