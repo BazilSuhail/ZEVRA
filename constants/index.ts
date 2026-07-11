@@ -43,6 +43,7 @@ export const SOCKET_EVENTS = {
   REACTION_ADDED: 'reaction:added',
   REACTION_REMOVED: 'reaction:removed',
   HEARTBEAT_ACK: 'heartbeat-ack',
+  PRESENCE_BULK: 'presence:bulk',
 
   // Calls — Server → Client
   CALL_METHOD_SELECTED: 'call:method-selected',

@@ -49,6 +49,7 @@ export interface ServerToClientEvents {
     channelId: string;
   }) => void;
   [SOCKET_EVENTS.HEARTBEAT_ACK]: (data: { timestamp: number }) => void;
+  [SOCKET_EVENTS.PRESENCE_BULK]: (data: { online: string[] }) => void;
 
   // Calls
   [SOCKET_EVENTS.CALL_METHOD_SELECTED]: (data: {

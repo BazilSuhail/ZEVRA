@@ -129,6 +129,7 @@ export function bindSocketHandlers(socket: AppSocket) {
 
   socket.on(SOCKET_EVENTS.USER_JOINED, () => {});
   socket.on(SOCKET_EVENTS.USER_LEFT, () => {});
+  socket.on(SOCKET_EVENTS.PRESENCE_BULK, () => {});
 
   // ─── Call Events ─────────────────────────────────────────────────
 

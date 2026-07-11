@@ -142,21 +142,6 @@ export default function ChatList() {
           });
           setNameMap((prev) => ({ ...prev, ...updates }));
         }
-
-        // Single batched online check using dmPeerId from server
-        const peerIds = data
-          .filter((r) => r.type === "DIRECT" && r.dmPeerId)
-          .map((r) => r.dmPeerId!);
-        if (peerIds.length > 0) {
-          try {
-            const res = await api.get<{ online: string[] }>(
-              `/api/users/online?ids=${peerIds.join(",")}`,
-            );
-            setOnlineUsers(new Set(res.online));
-          } catch (e) {
-            console.warn('[ChatList] Online status check failed:', e);
-          }
-        }
       })
       .catch(() => setLoaded(true));
   }, [isAuthenticated, loaded, user?.id, decryptPreview]);
@@ -200,11 +185,15 @@ export default function ChatList() {
     };
   }, [loaded]);
 
-  // ─── Real-time presence via socket events ────────────────────────────
+  // ─── Unified presence: bulk + real-time via socket ─────────────────────
   useEffect(() => {
     if (!loaded) return;
     const socket = getSocket();
     if (!socket) return;
+
+    const handlePresenceBulk = (data: { online: string[] }) => {
+      setOnlineUsers(new Set(data.online));
+    };
 
     const handleUserJoined = (data: { userId: string }) => {
       setOnlineUsers((prev) => new Set([...prev, data.userId]));
@@ -218,10 +207,12 @@ export default function ChatList() {
       });
     };
 
+    socket.on("presence:bulk", handlePresenceBulk);
     socket.on(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
     socket.on(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
 
     return () => {
+      socket.off("presence:bulk", handlePresenceBulk);
       socket.off(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
       socket.off(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
     };
