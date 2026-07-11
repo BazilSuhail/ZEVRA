@@ -139,6 +139,7 @@
 }
 
 @theme inline {
+    --breakpoint-xxs: 380px;
   --color-bg-primary: var(--bg-primary);
   --color-bg-secondary: var(--bg-secondary);
   --color-bg-surface: var(--bg-surface);
