@@ -191,6 +191,10 @@ export interface ClientToServerEvents {
   }) => void;
   [SOCKET_EVENTS.CALL_LIVEKIT_FALLBACK]: (data: { callId: string }) => void;
   [SOCKET_EVENTS.CALL_LIVEKIT_JOIN_GROUP]: (data: { callId: string }) => void;
+  [SOCKET_EVENTS.PRESENCE_BULK]: (
+    data: Record<string, never>,
+    callback: (response: { online: string[] }) => void,
+  ) => void;
 }
 
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;

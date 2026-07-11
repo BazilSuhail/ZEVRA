@@ -131,7 +131,7 @@ export default function DMChatPage() {
     socket.on(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
 
     // Request initial presence
-    socket.emit("presence:bulk", {}, (res: any) => {
+    socket.emit("presence:bulk", {}, (res) => {
       if (res?.online) {
         setIsOnline(res.online.includes(otherMember.id));
       }
