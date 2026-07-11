@@ -6,7 +6,7 @@ import { FiArrowRight, FiLock, FiShield } from "react-icons/fi";
 
 export default function CTA() {
   return (
-    <section className="relative z-10 px-6 sm:px-8 py-28 sm:py-36 text-purple-50" suppressHydrationWarning>
+    <section className="relative w-screen z-10 px-6 sm:px-8 py-28 sm:py-36 text-purple-50" suppressHydrationWarning>
       <div className="max-w-7xl mx-auto text-center">
         <motion.div
           initial={{ opacity: 0, y: 36 }}

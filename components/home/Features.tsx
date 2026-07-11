@@ -139,24 +139,9 @@ export default function Features() {
       onMouseMove={handleSectionMouse}
       onMouseEnter={() => setSpotVisible(true)}
       onMouseLeave={() => setSpotVisible(false)}
-      className="relative z-10 px-6 sm:px-8 py-28 sm:py-36 text-purple-50"
+      className="relative w-screen z-10 px-6 sm:px-8 py-28 sm:py-36 text-purple-50"
       suppressHydrationWarning
-    >
-      {/* Section Spotlight */}
-      <AnimatePresence>
-        {spotVisible && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="pointer-events-none absolute inset-0 z-0"
-            style={{
-              background: `radial-gradient(800px circle at ${mousePos.x}px ${mousePos.y}px, rgba(124,58,237,0.06), transparent 60%)`,
-            }}
-          />
-        )}
-      </AnimatePresence>
+    > 
 
       <div ref={containerRef} className="max-w-7xl mx-auto space-y-20 relative z-10">
         {/* Header */}

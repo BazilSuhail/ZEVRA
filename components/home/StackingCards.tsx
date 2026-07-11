@@ -2,193 +2,301 @@
 
 import { useTransform, motion, useScroll, MotionValue } from 'motion/react';
 import { useRef } from 'react';
-import { FiLock, FiShield, FiSend, FiLink, FiCode } from 'react-icons/fi';
 
 const projects = [
   {
     title: 'Client-Side Key Generation',
+    subtitle: 'LAYER 01 // LOCAL CRYPTO',
     description:
-      'X25519 key pairs and Ed25519 signing keys are computed locally in your browser. Private keys remain strictly encrypted in your device IndexedDB — never touching a server.',
-    color: '#130e24',
+      'X25519 key pairs and Ed25519 signing keys are computed locally in your browser using WebCrypto API. Private keys remain strictly encrypted inside your device IndexedDB — never touching an external server.',
+    color: '#0f0b1e',
     accent: '#6366f1',
+    tags: ['X25519', 'Ed25519', 'IndexedDB'],
   },
   {
     title: 'Zero-Knowledge Authentication',
+    subtitle: 'LAYER 02 // ZERO-TRUST AUTH',
     description:
-      'SRP-6a protocol verifies your identity without ever transmitting your password. A cryptographic verifier is all the server receives — zero plaintext, zero trust assumptions.',
-    color: '#0f0c1b',
+      'SRP-6a protocol verifies your identity without ever transmitting your password. A cryptographic verifier is all the server receives — zero plaintext exchanged, zero trust assumptions required.',
+    color: '#0d091a',
     accent: '#a855f7',
+    tags: ['SRP-6a', 'ZK-Proofs', 'Zero Plaintext'],
   },
   {
     title: 'Sealed Transport Layer',
+    subtitle: 'LAYER 03 // END-TO-END ENCRYPTION',
     description:
-      'Every payload is encrypted with AES-256-GCM before touching the network. Servers process only ciphertext — mathematically sealed and meaningless without your private key.',
-    color: '#130e24',
-    accent: '#818cf8',
+      'Every payload is encrypted with AES-256-GCM before touching the network pipeline. Servers process only ciphertext — mathematically sealed and completely meaningless without your private key.',
+    color: '#0f0b1e',
+    accent: '#38bdf8',
+    tags: ['AES-256-GCM', 'TLS 1.3', 'Ciphertext Only'],
   },
   {
     title: 'Forward Secrecy Ratchet',
+    subtitle: 'LAYER 04 // DOUBLE RATCHET',
     description:
-      'Session keys ratchet with every message. Past conversations remain sealed even if long-term keys are compromised — cryptographic time travel in your favor.',
-    color: '#0f0c1b',
+      'Session keys ratchet synchronously with every message exchanged. Past conversations remain cryptographically sealed even if long-term identity keys are compromised in the future.',
+    color: '#0d091a',
     accent: '#c084fc',
+    tags: ['Double Ratchet', 'DH Exchange', 'Ephemeral Keys'],
   },
   {
     title: 'Verifiable Architecture',
+    subtitle: 'LAYER 05 // TRANSPARENT SECURITY',
     description:
-      'Open cryptographic stack, auditable by design. Every protocol decision is documented, every implementation transparent — because privacy demands verification.',
-    color: '#130e24',
-    accent: '#6366f1',
+      'Open cryptographic stack, fully auditable by design. Every protocol decision is formally documented and every implementation transparent — because real privacy demands verification, not promises.',
+    color: '#0f0b1e',
+    accent: '#34d399',
+    tags: ['Open Source', 'Audited', 'Formal Spec'],
   },
 ];
 
-function KeyIcon({ accent }: { accent: string }) {
+/* -------------------------------------------------------------------------- */
+/*                            UPDATED SVG GRAPHICS                            */
+/* -------------------------------------------------------------------------- */
+
+function KeyGenDiagram({ accent }: { accent: string }) {
   return (
-    <svg viewBox="0 0 120 120" className="w-full h-full">
-      <style>{`
-        @keyframes keyPulse { 0%,100%{opacity:0.4;transform:scale(1)} 50%{opacity:0.8;transform:scale(1.05)} }
-        @keyframes ringRotate { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
-      `}</style>
-      <g style={{ animation: 'keyPulse 3s ease-in-out infinite' }}>
-        <circle cx="60" cy="60" r="50" fill="none" stroke={accent} strokeWidth="1" opacity={0.3} />
-        <circle cx="60" cy="60" r="38" fill="none" stroke={accent} strokeWidth="0.5" opacity={0.2} />
+    <svg viewBox="0 0 240 180" className="w-full h-full drop-shadow-2xl overflow-visible">
+      <defs>
+        <linearGradient id="keyGenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={accent} stopOpacity="0.8" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0.1" />
+        </linearGradient>
+        <filter id="glowKey" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+
+      {/* Grid Pattern Background */}
+      <g opacity="0.15">
+        <path d="M 10 0 V 180 M 50 0 V 180 M 90 0 V 180 M 130 0 V 180 M 170 0 V 180 M 210 0 V 180" stroke={accent} strokeWidth="0.5" strokeDasharray="2 4" />
+        <path d="M 0 30 H 240 M 0 70 H 240 M 0 110 H 240 M 0 150 H 240" stroke={accent} strokeWidth="0.5" strokeDasharray="2 4" />
       </g>
-      <g transform="translate(60,60)">
-        <g style={{ animation: 'ringRotate 12s linear infinite', transformOrigin: 'center' }}>
-          <circle cx="0" cy="-42" r="4" fill={accent} opacity={0.6} />
-          <circle cx="42" cy="0" r="3" fill={accent} opacity={0.4} />
-          <circle cx="0" cy="42" r="4" fill={accent} opacity={0.6} />
-          <circle cx="-42" cy="0" r="3" fill={accent} opacity={0.4} />
-        </g>
+
+      {/* Rotating Outer Ring */}
+      <g transform="translate(120, 90)">
+        <circle r="65" fill="none" stroke={accent} strokeWidth="1" strokeDasharray="8 6 2 6" opacity="0.4" className="animate-[spin_20s_linear_infinite]" />
+        <circle r="52" fill="none" stroke={accent} strokeWidth="1.5" strokeDasharray="40 100" opacity="0.6" className="animate-[spin_12s_linear_infinite_reverse]" />
       </g>
-      <g transform="translate(42,52)">
-        <rect x="0" y="8" width="36" height="20" rx="4" fill={accent} opacity={0.7} />
-        <circle cx="12" cy="18" r="4" fill="#0a0812" />
-        <path d="M 20,0 V 12 H 28 V 0" fill="none" stroke={accent} strokeWidth="3" strokeLinecap="round" opacity={0.7} />
+
+      {/* Key Core Assembly */}
+      <g transform="translate(120, 90)" filter="url(#glowKey)">
+        <circle r="36" fill="#090613" stroke={accent} strokeWidth="2" />
+        <circle r="26" fill="none" stroke={accent} strokeWidth="1" strokeDasharray="4 3" opacity="0.7" />
+
+        {/* Animated Scanning Beam */}
+        <line x1="-30" y1="0" x2="30" y2="0" stroke={accent} strokeWidth="2" className="animate-[spin_4s_linear_infinite]" />
+
+        {/* Central Key Icon */}
+        <path
+          d="M -8 -4 A 8 8 0 1 1 2 4 L 10 4 L 10 8 L 14 8 L 14 4 L 18 4 L 18 -4 Z"
+          fill={accent}
+          transform="translate(-5, 0) scale(1.2)"
+        />
+      </g>
+
+      {/* Floating Data Nodes */}
+      <g>
+        <circle cx="45" cy="45" r="4" fill={accent} className="animate-ping" opacity="0.7" />
+        <circle cx="45" cy="45" r="3" fill={accent} />
+        <text x="45" y="34" fill={accent} fontSize="8" fontFamily="monospace" textAnchor="middle" opacity="0.8">PUB_KEY</text>
+        <line x1="45" y1="45" x2="88" y2="70" stroke={accent} strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />
+
+        <circle cx="195" cy="135" r="4" fill={accent} className="animate-ping" opacity="0.7" />
+        <circle cx="195" cy="135" r="3" fill={accent} />
+        <text x="195" y="148" fill={accent} fontSize="8" fontFamily="monospace" textAnchor="middle" opacity="0.8">PRIV_SEC</text>
+        <line x1="195" y1="135" x2="152" y2="110" stroke={accent} strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />
       </g>
     </svg>
   );
 }
 
-function ShieldIcon({ accent }: { accent: string }) {
+function ZkProofDiagram({ accent }: { accent: string }) {
   return (
-    <svg viewBox="0 0 120 120" className="w-full h-full">
-      <style>{`
-        @keyframes shieldGlow { 0%,100%{filter:drop-shadow(0 0 4px ${accent}33)} 50%{filter:drop-shadow(0 0 12px ${accent}66)} }
-        @keyframes checkDraw { 0%{stroke-dashoffset:30} 100%{stroke-dashoffset:0} }
-      `}</style>
-      <g style={{ animation: 'shieldGlow 3s ease-in-out infinite' }}>
-        <path
-          d="M 60,15 L 95,30 L 95,60 Q 95,95 60,110 Q 25,95 25,60 L 25,30 Z"
-          fill="none"
-          stroke={accent}
-          strokeWidth="2"
-          opacity={0.6}
-        />
-        <path
-          d="M 60,25 L 88,38 L 88,58 Q 88,88 60,100 Q 32,88 32,58 L 32,38 Z"
-          fill={accent}
-          opacity={0.08}
-        />
-      </g>
-      <path
-        d="M 45,60 L 55,72 L 78,48"
+    <svg viewBox="0 0 240 180" className="w-full h-full drop-shadow-2xl overflow-visible">
+      <defs>
+        <filter id="glowShield" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="5" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+
+      {/* Outer Hexagon Boundary */}
+      <polygon
+        points="120,15 180,45 180,135 120,165 60,135 60,45"
         fill="none"
         stroke={accent}
-        strokeWidth="3.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeDasharray="30"
-        style={{ animation: 'checkDraw 1.5s ease-out infinite alternate' }}
+        strokeWidth="1.5"
+        opacity="0.3"
+        strokeDasharray="6 4"
       />
-    </svg>
-  );
-}
 
-function PacketIcon({ accent }: { accent: string }) {
-  return (
-    <svg viewBox="0 0 120 120" className="w-full h-full">
-      <style>{`
-        @keyframes flyRight { 0%{transform:translateX(-20px);opacity:0} 20%{opacity:1} 80%{opacity:1} 100%{transform:translateX(20px);opacity:0} }
-        @keyframes trailPulse { 0%,100%{opacity:0.2} 50%{opacity:0.5} }
-      `}</style>
+      {/* Zero Knowledge Verifier Node */}
+      <g transform="translate(120, 90)" filter="url(#glowShield)">
+        {/* Shield Structure */}
+        <path
+          d="M 0 -45 L 35 -25 L 35 15 Q 35 45 0 55 Q -35 45 -35 15 L -35 -25 Z"
+          fill="#090613"
+          stroke={accent}
+          strokeWidth="2"
+        />
+
+        {/* Verification Check Mark Circuit */}
+        <path
+          d="M -14 2 L -4 12 L 16 -10"
+          fill="none"
+          stroke={accent}
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+
+      {/* Prover to Verifier Particles */}
       <g>
-        <rect x="20" y="35" width="50" height="35" rx="6" fill={accent} opacity={0.15} stroke={accent} strokeWidth="1.5" />
-        <path d="M 20,35 L 45,55 L 70,35" fill="none" stroke={accent} strokeWidth="1.5" opacity={0.5} />
-        <circle cx="45" cy="52" r="5" fill={accent} opacity={0.4} />
+        <circle cx="30" cy="90" r="16" fill="#090613" stroke={accent} strokeWidth="1.5" />
+        <text x="30" y="93" fill={accent} fontSize="9" fontFamily="monospace" textAnchor="middle">PROVER</text>
+
+        <path d="M 46 90 H 80" stroke={accent} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6" />
+
+        {/* Animated Floating Proof Tokens */}
+        <circle cx="62" cy="90" r="3" fill={accent} className="animate-[ping_2s_infinite]" />
       </g>
-      <g style={{ animation: 'flyRight 2.5s ease-in-out infinite' }}>
-        <rect x="70" y="42" width="30" height="22" rx="4" fill={accent} opacity={0.6} />
-        <path d="M 70,42 L 85,53 L 100,42" fill="none" stroke="#fff" strokeWidth="1" opacity={0.4} />
-      </g>
-      <g style={{ animation: 'trailPulse 2s ease-in-out infinite' }}>
-        <line x1="15" y1="55" x2="25" y2="55" stroke={accent} strokeWidth="1.5" opacity={0.3} />
-        <line x1="10" y1="52" x2="18" y2="52" stroke={accent} strokeWidth="1" opacity={0.2} />
-        <line x1="12" y1="58" x2="20" y2="58" stroke={accent} strokeWidth="1" opacity={0.2} />
+
+      {/* Zero Plaintext Signal Standard */}
+      <g transform="translate(170, 75)">
+        <rect width="50" height="30" rx="6" fill="#090613" stroke={accent} strokeWidth="1" />
+        <text x="25" y="18" fill={accent} fontSize="7" fontFamily="monospace" textAnchor="middle">VERIFIED</text>
+        <circle cx="25" cy="24" r="2" fill={accent} />
       </g>
     </svg>
   );
 }
 
-function RatchetIcon({ accent }: { accent: string }) {
+function TransportDiagram({ accent }: { accent: string }) {
   return (
-    <svg viewBox="0 0 120 120" className="w-full h-full">
-      <style>{`
-        @keyframes chainSlide { 0%{transform:translateY(0)} 50%{transform:translateY(-6px)} 100%{transform:translateY(0)} }
-        @keyframes linkPulse { 0%,100%{opacity:0.5;transform:scale(1)} 50%{opacity:0.9;transform:scale(1.08)} }
-      `}</style>
-      {[0, 1, 2, 3, 4].map((i) => (
-        <g
-          key={i}
-          transform={`translate(${25 + i * 16}, ${50 + (i % 2) * 12})`}
-          style={{
-            animation: `chainSlide 2s ease-in-out ${i * 0.3}s infinite`,
-          }}
-        >
-          <rect
-            x="0" y="0" width="14" height="22" rx="5"
-            fill="none" stroke={accent} strokeWidth="1.5"
-            style={{ animation: `linkPulse 2s ease-in-out ${i * 0.2}s infinite` }}
-          />
-        </g>
-      ))}
-      <circle cx="60" cy="90" r="12" fill="none" stroke={accent} strokeWidth="1" opacity={0.3} />
-      <circle cx="60" cy="90" r="6" fill={accent} opacity={0.2} />
-    </svg>
-  );
-}
+    <svg viewBox="0 0 240 180" className="w-full h-full drop-shadow-2xl overflow-visible">
+      {/* Network Pipeline Channels */}
+      <path d="M 20 90 H 220" stroke={accent} strokeWidth="2" opacity="0.2" />
+      <path d="M 20 65 H 220" stroke={accent} strokeWidth="1" strokeDasharray="3 3" opacity="0.15" />
+      <path d="M 20 115 H 220" stroke={accent} strokeWidth="1" strokeDasharray="3 3" opacity="0.15" />
 
-function CodeIcon({ accent }: { accent: string }) {
-  return (
-    <svg viewBox="0 0 120 120" className="w-full h-full">
-      <style>{`
-        @keyframes scanLine { 0%{transform:translateY(-40px)} 100%{transform:translateY(40px)} }
-        @keyframes bracketPulse { 0%,100%{opacity:0.4} 50%{opacity:0.8} }
-      `}</style>
-      <g style={{ animation: 'bracketPulse 3s ease-in-out infinite' }}>
-        <text x="28" y="52" fill={accent} fontSize="28" fontFamily="monospace" opacity={0.6}>&lt;</text>
-        <text x="72" y="52" fill={accent} fontSize="28" fontFamily="monospace" opacity={0.6}>&gt;</text>
-        <text x="36" y="72" fill={accent} fontSize="28" fontFamily="monospace" opacity={0.4}>/&gt;</text>
+      {/* Sealed Tunnel Barrier */}
+      <rect x="70" y="45" width="100" height="90" rx="12" fill="#090613" stroke={accent} strokeWidth="1.5" opacity="0.9" />
+      <rect x="76" y="51" width="88" height="78" rx="8" fill="none" stroke={accent} strokeWidth="1" strokeDasharray="4 4" opacity="0.4" />
+
+      {/* Encrypted Lock Core */}
+      <g transform="translate(120, 85)">
+        <rect x="-12" y="-2" width="24" height="20" rx="4" fill={accent} opacity="0.9" />
+        <path d="M -7 -2 V -8 A 7 7 0 0 1 7 -8 V -2" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="0" cy="7" r="2.5" fill="#090613" />
       </g>
-      <line x1="20" y1="30" x2="100" y2="30" stroke={accent} strokeWidth="0.5" opacity={0.2} />
-      <line x1="20" y1="90" x2="100" y2="90" stroke={accent} strokeWidth="0.5" opacity={0.2} />
-      <rect
-        x="20" y="30" width="80" height="4" rx="2"
-        fill={accent} opacity={0.15}
-        style={{ animation: 'scanLine 3s ease-in-out infinite' }}
-      />
+
+      {/* Plaintext to Ciphertext Transformation Blocks */}
+      {/* Incoming Plaintext */}
+      <g className="animate-[pulse_2s_infinite]">
+        <rect x="25" y="78" width="24" height="24" rx="4" fill="#090613" stroke={accent} strokeWidth="1" />
+        <text x="37" y="93" fill={accent} fontSize="8" fontFamily="monospace" textAnchor="middle">TXT</text>
+      </g>
+
+      {/* Outgoing Ciphertext */}
+      <g className="animate-[pulse_2s_infinite_0.5s]">
+        <rect x="190" y="78" width="24" height="24" rx="4" fill={accent} opacity="0.8" />
+        <text x="202" y="93" fill="#090613" fontSize="8" fontFamily="monospace" fontWeight="bold" textAnchor="middle">0x8F</text>
+      </g>
     </svg>
   );
 }
 
-const icons = [KeyIcon, ShieldIcon, PacketIcon, RatchetIcon, CodeIcon];
+function RatchetDiagram({ accent }: { accent: string }) {
+  return (
+    <svg viewBox="0 0 240 180" className="w-full h-full drop-shadow-2xl overflow-visible">
+      {/* Ratchet Chain Links */}
+      <g transform="translate(20, 90)">
+        {[0, 1, 2, 3].map((step) => (
+          <g key={step} transform={`translate(${step * 50}, 0)`}>
+            {/* Connection Line */}
+            {step < 3 && (
+              <line x1="20" y1="0" x2="50" y2="0" stroke={accent} strokeWidth="2" strokeDasharray="3 3" opacity="0.6" />
+            )}
+
+            {/* Ratchet Step Node */}
+            <circle r="16" fill="#090613" stroke={accent} strokeWidth="1.5" />
+            <circle r="8" fill={accent} opacity={0.2} />
+            <circle r="3" fill={accent} />
+
+            {/* Key Identifier */}
+            <text x="0" y="28" fill={accent} fontSize="8" fontFamily="monospace" textAnchor="middle" opacity="0.8">
+              K_{step + 1}
+            </text>
+          </g>
+        ))}
+      </g>
+
+      {/* Active Forward Step Pulse */}
+      <g transform="translate(120, 40)">
+        <rect x="-40" y="-12" width="80" height="24" rx="12" fill="#090613" stroke={accent} strokeWidth="1" />
+        <text x="0" y="3" fill={accent} fontSize="8" fontFamily="monospace" textAnchor="middle">FORWARD SECURE</text>
+      </g>
+    </svg>
+  );
+}
+
+function CodeSpecDiagram({ accent }: { accent: string }) {
+  return (
+    <svg viewBox="0 0 240 180" className="w-full h-full drop-shadow-2xl overflow-visible">
+      {/* Code Editor Window frame */}
+      <rect x="30" y="25" width="180" height="130" rx="10" fill="#090613" stroke={accent} strokeWidth="1.5" />
+      <line x1="30" y1="50" x2="210" y2="50" stroke={accent} strokeWidth="1" opacity="0.3" />
+
+      {/* Window Controls */}
+      <circle cx="45" cy="37" r="3" fill={accent} opacity="0.8" />
+      <circle cx="55" cy="37" r="3" fill={accent} opacity="0.5" />
+      <circle cx="65" cy="37" r="3" fill={accent} opacity="0.3" />
+      <text x="120" y="40" fill={accent} fontSize="8" fontFamily="monospace" textAnchor="middle" opacity="0.6">crypto_spec.rs</text>
+
+      {/* Code Lines Abstract Representation */}
+      <g transform="translate(45, 65)">
+        <rect x="0" y="0" width="60" height="6" rx="3" fill={accent} opacity="0.8" />
+        <rect x="68" y="0" width="40" height="6" rx="3" fill={accent} opacity="0.4" />
+
+        <rect x="12" y="14" width="80" height="6" rx="3" fill={accent} opacity="0.5" />
+        <rect x="98" y="14" width="30" height="6" rx="3" fill={accent} opacity="0.3" />
+
+        <rect x="12" y="28" width="45" height="6" rx="3" fill={accent} opacity="0.6" />
+        <rect x="63" y="28" width="70" height="6" rx="3" fill={accent} opacity="0.9" />
+
+        <rect x="0" y="42" width="50" height="6" rx="3" fill={accent} opacity="0.7" />
+
+        {/* Animated Terminal Cursor */}
+        <rect x="54" y="42" width="6" height="8" fill={accent} className="animate-ping" />
+      </g>
+
+      {/* Verification Shield Badge */}
+      <g transform="translate(180, 125)">
+        <circle r="16" fill="#090613" stroke={accent} strokeWidth="1.5" />
+        <path d="M -5 -1 L -1 3 L 6 -4" fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
+
+const diagrams = [KeyGenDiagram, ZkProofDiagram, TransportDiagram, RatchetDiagram, CodeSpecDiagram];
+
+/* -------------------------------------------------------------------------- */
+/*                            STACK CARD COMPONENT                            */
+/* -------------------------------------------------------------------------- */
 
 interface CardProps {
   i: number;
   title: string;
+  subtitle: string;
   description: string;
   color: string;
   accent: string;
+  tags: string[];
   progress: MotionValue<number>;
   range: [number, number];
   targetScale: number;
@@ -197,9 +305,11 @@ interface CardProps {
 function StackCard({
   i,
   title,
+  subtitle,
   description,
   color,
   accent,
+  tags,
   progress,
   range,
   targetScale,
@@ -210,56 +320,74 @@ function StackCard({
     offset: ['start end', 'start start'],
   });
 
-  const imageScale = useTransform(scrollYProgress, [0, 1], [2, 1]);
+  const diagramScale = useTransform(scrollYProgress, [0, 1], [0.8, 1]);
   const scale = useTransform(progress, range, [1, targetScale]);
 
-  const Icon = icons[i];
+  const DiagramComponent = diagrams[i];
 
   return (
     <div
       ref={container}
-      className="h-screen flex items-center justify-center sticky top-0"
+      className="h-screen flex items-center justify-center sticky -top-12 sm:-top-8 lg:-top-10 px-4 sm:px-6"
     >
       <motion.div
         style={{
           backgroundColor: color,
           scale,
-          top: `calc(-5vh + ${i * 25}px)`,
+          top: `calc(10vh + ${i * 28}px)`,
         }}
-        className="flex flex-col relative -top-[25%] h-[450px] w-full max-w-7xl mx-auto rounded-2xl p-6 sm:p-10 origin-top overflow-hidden"
+        className="flex flex-col relative h-130 sm:h-120 w-full max-w-5xl mx-auto rounded-3xl p-6 sm:p-10 origin-top border border-white/10 shadow-2xl overflow-hidden backdrop-blur-xl"
       >
-        {/* Subtle SVG background */}
-        <svg className="absolute inset-0 w-full h-full opacity-[0.03] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <circle cx="80" cy="20" r="30" fill={accent} />
-          <circle cx="20" cy="80" r="20" fill={accent} />
-        </svg>
+        {/* Subtle Ambient Glow */}
+        <div
+          className="absolute -right-20 -top-20 w-80 h-80 rounded-full opacity-15 pointer-events-none blur-3xl"
+          style={{ backgroundColor: accent }}
+        />
 
-        <h2 className="text-xl sm:text-2xl font-bold text-white text-center tracking-tight relative z-10">
-          {title}
-        </h2>
+        {/* Card Header & Metadata */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-4 relative z-10">
+          <span className="text-xs font-mono font-semibold tracking-widest uppercase" style={{ color: accent }}>
+            {subtitle}
+          </span>
+          <span className="text-xs font-mono text-white/40">
+            0{i + 1} / 0{projects.length}
+          </span>
+        </div>
 
-        <div className="flex flex-col sm:flex-row h-full mt-5 gap-6 sm:gap-10 relative z-10">
-          {/* Left — Text */}
-          <div className="sm:w-[45%] flex flex-col justify-center">
-            <p className="text-sm sm:text-base text-purple-200/75 leading-relaxed">
-              {description}
-            </p>
-            <div className="mt-4 flex items-center gap-2 text-xs font-mono" style={{ color: accent }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: accent }} />
-              <span>Learn more</span>
-              <svg width="16" height="8" viewBox="0 0 16 8" fill="none">
-                <path d="M15.5 4.5C15.5 4.22 15.28 4 15 4H1M15 4L11.5 1M15 4L11.5 7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+        {/* Content Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 h-full mt-6 gap-6 lg:gap-8 relative z-10 items-center">
+          {/* Left Column — Text & Tags */}
+          <div className="lg:col-span-6 flex flex-col justify-between h-full py-2">
+            <div>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight leading-tight">
+                {title}
+              </h2>
+
+              <p className="mt-4 text-sm sm:text-base text-purple-200/70 leading-relaxed font-normal">
+                {description}
+              </p>
+            </div>
+
+            {/* Tech Tags & Learn Link */}
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              {tags.map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="px-2.5 py-1 rounded-md text-xs font-mono bg-white/5 border border-white/10 text-white/80"
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
           </div>
 
-          {/* Right — SVG Animation */}
-          <div className="sm:w-[55%] flex items-center justify-center">
+          {/* Right Column — Interactive Dynamic Graphic */}
+          <div className="lg:col-span-6 flex items-center justify-center bg-black/20 rounded-2xl border border-white/5 p-4 sm:p-6 h-56 sm:h-64 lg:h-full">
             <motion.div
-              className="w-40 h-40 sm:w-56 sm:h-56"
-              style={{ scale: imageScale }}
+              className="w-full h-full flex items-center justify-center max-w-[280px] sm:max-w-[340px]"
+              style={{ scale: diagramScale }}
             >
-              <Icon accent={accent} />
+              <DiagramComponent accent={accent} />
             </motion.div>
           </div>
         </div>
@@ -267,6 +395,10 @@ function StackCard({
     </div>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/*                            MAIN STACKING CARDS                             */
+/* -------------------------------------------------------------------------- */
 
 export default function StackingCards() {
   const container = useRef(null);
@@ -276,32 +408,37 @@ export default function StackingCards() {
   });
 
   return (
-    <section ref={container} className="relative z-10">
+    <section ref={container} className="relative w-full z-10 py-20">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="h-[50vh] w-full grid place-content-center px-6">
-          <h2 className="text-4xl sm:text-6xl font-bold text-center text-purple-50 tracking-tight leading-tight">
-            Cryptographic Stack
+        {/* Section Header */}
+        <div className="flex flex-col items-center justify-center text-center px-6 ">
+          <span className="text-xs font-mono tracking-widest text-purple-400 uppercase mb-3">
+            [ PROTOCOL SPECIFICATION ]
+          </span>
+          <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
+            Cryptographic Architecture
           </h2>
-          <p className="text-center text-purple-300/60 mt-4 text-sm sm:text-base">
-            Scroll to explore each layer
+          <p className="text-purple-300/60 mt-3 max-w-xl text-sm sm:text-base">
+            End-to-end mathematical guarantees built from first principles.
           </p>
         </div>
 
-        {/* Stacking Cards */}
+        {/* Stacking Cards Container */}
         <section className="w-full">
           {projects.map((project, i) => {
-            const targetScale = 1 - (projects.length - i) * 0.05;
+            const targetScale = 1 - (projects.length - i) * 0.04;
             return (
               <StackCard
                 key={i}
                 i={i}
                 title={project.title}
+                subtitle={project.subtitle}
                 description={project.description}
                 color={project.color}
                 accent={project.accent}
+                tags={project.tags}
                 progress={scrollYProgress}
-                range={[i * 0.25, 1]}
+                range={[i * 0.2, 1]}
                 targetScale={targetScale}
               />
             );

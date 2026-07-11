@@ -51,7 +51,7 @@ export default function Hero() {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="relative px-5 h-screen text-white flex flex-col md:justify-between overflow-hidden pt-32 md:py-32 select-none"
+      className="relative w-screen px-5 h-screen text-white flex flex-col md:justify-between pt-32 md:py-32 select-none"
     >
       {/* 3D Glass Lens Visuals */}
       <motion.div variants={fadeIn} className="absolute inset-0 pointer-events-none z-0">
