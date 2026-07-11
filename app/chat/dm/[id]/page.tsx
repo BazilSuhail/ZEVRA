@@ -75,6 +75,7 @@ export default function DMChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const [idbReady, setIdbReady] = useState(false);
 
@@ -106,6 +107,42 @@ export default function DMChatPage() {
       .then((data) => setChannel(data))
       .catch(() => setError("Failed to load channel"));
   }, [channelId, isAuthenticated]);
+
+  // ─── Presence: track if peer is online ───────────────────────────────
+  useEffect(() => {
+    if (!socket || !channel) return;
+    const otherMember = channel.members?.find((m) => m.id !== me?.id);
+    if (!otherMember) return;
+
+    const handlePresenceBulk = (data: { online: string[] }) => {
+      setIsOnline(data.online.includes(otherMember.id));
+    };
+
+    const handleUserJoined = (data: { userId: string }) => {
+      if (data.userId === otherMember.id) setIsOnline(true);
+    };
+
+    const handleUserLeft = (data: { userId: string }) => {
+      if (data.userId === otherMember.id) setIsOnline(false);
+    };
+
+    socket.on("presence:bulk", handlePresenceBulk);
+    socket.on(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
+    socket.on(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
+
+    // Request initial presence
+    socket.emit("presence:bulk", {}, (res: any) => {
+      if (res?.online) {
+        setIsOnline(res.online.includes(otherMember.id));
+      }
+    });
+
+    return () => {
+      socket.off("presence:bulk", handlePresenceBulk);
+      socket.off(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
+      socket.off(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
+    };
+  }, [socket, channel, me?.id]);
 
   // ─── Step 1: Load from IDB instantly ─────────────────────────────────
   useEffect(() => {
@@ -456,7 +493,7 @@ export default function DMChatPage() {
 
   // ─── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="relative flex min-w-0 flex-1 flex-col bg-[#fbfcfd] dark:bg-zinc-950">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[#fbfcfd] dark:bg-zinc-950">
       {/* Background pattern */}
       <div
         className="pointer-events-none absolute inset-0 z-0 opacity-[0.1]"
@@ -475,13 +512,14 @@ export default function DMChatPage() {
             href={`/chat/dm/${channelId}/info`}
             className="flex items-center gap-3"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700">
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700">
               {initials}
+              <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-zinc-900 ${isOnline ? "bg-emerald-500" : "bg-zinc-400"}`} />
             </div>
             <div>
               <h2 className="text-sm font-bold">{displayName}</h2>
               <p className="text-xs text-zinc-500">
-                {loading ? "Loading..." : "Online"}
+                {loading ? "Loading..." : isOnline ? "Online" : "Offline"}
               </p>
             </div>
           </Link>

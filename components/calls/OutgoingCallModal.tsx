@@ -46,7 +46,7 @@ function CallSidebar({
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: 320, opacity: 0 }}
           transition={{ type: "spring", damping: 28, stiffness: 300 }}
-          className="absolute right-0 top-0 z-20 flex h-full w-72  flex-col border-l border-zinc-700/50 bg-zinc-900/90 backdrop-blur-xl"
+          className="absolute right-0 top-0 z-20 flex h-full w-56 sm:w-64 flex-col border-l border-zinc-700/50 bg-zinc-900/90 backdrop-blur-xl"
         >
           <div className="flex items-center justify-between px-5 py-4">
             <h3 className="text-sm font-semibold text-white">Call Details</h3>
@@ -227,14 +227,14 @@ export default function OutgoingCallModal() {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/70 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/70 backdrop-blur-sm p-4"
       >
         <motion.div
           initial={{ scale: 0.92, opacity: 0, y: 12 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.92, opacity: 0, y: 12 }}
           transition={{ type: "spring", damping: 28, stiffness: 340 }}
-          className="relative h-140 w-full max-w-md lg:max-w-220 overflow-hidden rounded-3xl bg-zinc-900/95 shadow-2xl ring-1 ring-zinc-700/50 backdrop-blur-xl"
+          className="relative h-[60vh] sm:h-[70vh] md:h-140 w-full max-w-sm sm:max-w-md lg:max-w-lg overflow-hidden rounded-3xl bg-zinc-900/95 shadow-2xl ring-1 ring-zinc-700/50 backdrop-blur-xl"
         >
           {/* Video preview */}
           <div className="relative h-full overflow-hidden bg-zinc-800">
@@ -268,7 +268,7 @@ export default function OutgoingCallModal() {
             <div className="absolute inset-x-0 bottom-1/3 z-10 flex flex-col items-center px-4 ">
               {/* Avatar */}
               <div className="relative mb-3">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-700 text-xl font-bold text-white shadow-lg shadow-purple-500/30">
+                <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-700 text-lg sm:text-xl font-bold text-white shadow-lg shadow-purple-500/30">
                   {activeCall?.peerUsername?.[0]?.toUpperCase() || "?"}
                 </div>
                 {/* Pulsing ring */}
@@ -278,7 +278,7 @@ export default function OutgoingCallModal() {
                   transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                 />
               </div>
-              <p className="text-lg font-semibold text-white drop-shadow-lg">
+              <p className="text-base sm:text-lg font-semibold text-white drop-shadow-lg">
                 {activeCall?.peerUsername}
               </p>
               <div className="mt-1.5 flex items-center gap-2">
@@ -307,7 +307,7 @@ export default function OutgoingCallModal() {
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                    className="h-12 w-12 rounded-full border-[3px] border-zinc-600 border-t-purple-400"
+                    className="h-10 w-10 sm:h-12 sm:w-12 rounded-full border-[3px] border-zinc-600 border-t-purple-400"
                   />
                   <div className="text-center">
                     <p className="text-base font-medium text-white">
@@ -321,12 +321,12 @@ export default function OutgoingCallModal() {
 
             {/* Controls */}
             <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center pb-2">
-              <div className="flex items-center gap-3 rounded-2xl bg-zinc-900/60 px-5 py-3 backdrop-blur-md">
+              <div className="flex items-center gap-2 sm:gap-3 rounded-2xl bg-zinc-900/60 px-3 sm:px-5 py-2.5 sm:py-3 backdrop-blur-md">
                 <motion.button
                   onClick={toggleMute}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
+                  className={`flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full transition-colors ${
                     isMuted
                       ? "bg-red-500/15 text-red-400"
                       : "bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700/80"
@@ -344,7 +344,7 @@ export default function OutgoingCallModal() {
                   onClick={toggleVideo}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
+                  className={`flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full transition-colors ${
                     isVideoOff
                       ? "bg-red-500/15 text-red-400"
                       : "bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700/80"
@@ -362,7 +362,7 @@ export default function OutgoingCallModal() {
                   onClick={handleHangup}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  className="flex h-14 w-14 items-center justify-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/30 transition-colors hover:bg-red-600"
+                  className="flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/30 transition-colors hover:bg-red-600"
                   title="End call"
                 >
                   <FiPhoneOff className="h-5 w-5" />

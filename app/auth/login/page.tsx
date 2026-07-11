@@ -144,6 +144,7 @@ export default function LoginPage() {
 
       <main className="relative z-10 bg mx-auto flex w-full max-w-6xl flex-1 items-center justify-center overflow-hidden">
         <div className="grid w-full grid-cols-1 items-center gap-6 lg:grid-cols-2 lg:gap-12 my-auto">
+          {/* Desktop Left Column */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -173,7 +174,7 @@ export default function LoginPage() {
               </span>
             </div>
 
-            <div className="h-48 w-48 xl:h-100 xl:w-110 mx-auto transition-transform duration-300 hover:scale-105">
+            <div className="h-48 w-48 md:h-100 md:w-110 mx-auto transition-transform duration-300 hover:scale-105">
               <MotionConfig transition={{ type: "tween", duration: 0.4, ease: "easeInOut" }}>
                 <ClientBlob mood={blobMood} gaze={blobGaze} />
               </MotionConfig>
@@ -191,14 +192,23 @@ export default function LoginPage() {
 
           <div className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1px] h-2/3 bg-gradient-to-b from-transparent via-purple-400/40 to-transparent pointer-events-none z-20" />
 
+          {/* Right Column (Sign-In Form) */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-md mx-auto lg:order-2"
           >
-            <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950 border border-purple-800/40 text-xs text-purple-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
-              Identity Verification
+            {/* Identity Verification Row with Mobile-only Blob */}
+            <div className="relative flex items-center justify-between mb-3 lg:block">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950 border border-purple-800/40 text-xs text-purple-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
+                Identity Verification
+              </div>
+
+              {/* Absolute-positioned Blob on right side for mobile/tablet (< lg screen) */}
+              <div className="lg:hidden absolute -right-8 top-1/2 -translate-y-1/2 h-55 w-50 pointer-events-none">
+                <ClientBlob mood={blobMood} gaze={blobGaze} />
+              </div>
             </div>
 
             <h2 className="mb-1 text-2xl font-bold text-white">Sign in</h2>
@@ -227,7 +237,7 @@ export default function LoginPage() {
                 <label className="mb-3 block text-xs font-medium text-purple-200/90">
                   Username
                 </label>
-                <div className="flex items-center gap-2 bg-black/60  rounded-xl border-2 border-border-purple px-3.5 py-4 text-[15px] transition-all focus-within:border-border-purple-focus focus-within:ring-1 focus-within:ring-border-purple-focus/40">
+                <div className="flex items-center gap-2 bg-black/60 rounded-xl border-2 border-border-purple px-3.5 py-4 text-[15px] transition-all focus-within:border-border-purple-focus focus-within:ring-1 focus-within:ring-border-purple-focus/40">
                   <FiUser className="h-4 w-4 text-purple-400 shrink-0" />
                   <input
                     type="text"
@@ -255,7 +265,7 @@ export default function LoginPage() {
                     Forgot?
                   </Link>
                 </div>
-                <div className="flex items-center gap-2 rounded-xl bg-black/60  border-2 border-border-purple px-3.5 py-4 text-[15px] transition-all focus-within:border-border-purple-focus focus-within:ring-1 focus-within:ring-border-purple-focus/40">
+                <div className="flex items-center gap-2 rounded-xl bg-black/60 border-2 border-border-purple px-3.5 py-4 text-[15px] transition-all focus-within:border-border-purple-focus focus-within:ring-1 focus-within:ring-border-purple-focus/40">
                   <FiLock className="h-4 w-4 text-purple-400 shrink-0" />
                   <input
                     type="password"

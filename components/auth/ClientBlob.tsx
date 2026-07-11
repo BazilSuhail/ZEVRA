@@ -29,8 +29,6 @@ export default function ClientBlob({ mood, gaze }: BlobProps) {
 
     setEnabled(isLargeScreen && !prefersReducedMotion);
   }, []);
-
-  if (!enabled) return <div aria-hidden="true" className="h-full w-full" />;
-
+ 
   return <JellyBlobMascot mood={mood} gaze={gaze} />;
 }

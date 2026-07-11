@@ -420,9 +420,9 @@ export default function ActiveCallOverlay() {
       animate={{ y: 0, opacity: 1, scale: 1 }}
       exit={{ y: 80, opacity: 0, scale: 0.95 }}
       transition={{ type: "spring", damping: 28, stiffness: 340 }}
-      className="fixed bottom-6 right-6 z-50 w-72 overflow-hidden rounded-3xl border border-zinc-200/80 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-zinc-800/80 dark:bg-zinc-900/95"
+      className="fixed bottom-4 right-4 z-50 w-48 sm:w-56 lg:w-64 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-zinc-800/80 dark:bg-zinc-900/95"
     >
-      <div className="relative h-40 bg-zinc-900">
+      <div className="relative h-28 sm:h-32 lg:h-36 bg-zinc-900">
         {hasRemote ? (
           <video
             ref={remoteRef}
@@ -446,7 +446,7 @@ export default function ActiveCallOverlay() {
             autoPlay
             playsInline
             muted
-            className="absolute right-2 top-2 h-14 w-20 rounded-xl border border-white/20 object-cover shadow-lg"
+            className="absolute right-1.5 top-1.5 h-10 w-14 sm:h-12 sm:w-16 rounded-lg border border-white/20 object-cover shadow-lg"
           />
         )}
 
@@ -465,11 +465,11 @@ export default function ActiveCallOverlay() {
       </div>
 
       {/* Compact Controls */}
-      <div className="flex items-center justify-center gap-2 p-2.5">
+      <div className="flex items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-2.5">
         <motion.button
           onClick={toggleMute}
           whileTap={{ scale: 0.92 }}
-          className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+          className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full transition-colors ${
             isMuted
               ? "bg-rose-500/15 text-rose-500"
               : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
@@ -481,7 +481,7 @@ export default function ActiveCallOverlay() {
         <motion.button
           onClick={handleHangup}
           whileTap={{ scale: 0.92 }}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-600 text-white shadow-md shadow-rose-900/20 hover:bg-rose-700"
+          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-rose-600 text-white shadow-md shadow-rose-900/20 hover:bg-rose-700"
         >
           <FiPhoneOff className="h-4 w-4" />
         </motion.button>
@@ -489,19 +489,19 @@ export default function ActiveCallOverlay() {
         <motion.button
           onClick={toggleVideo}
           whileTap={{ scale: 0.92 }}
-          className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+          className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full transition-colors ${
             isVideoOff
               ? "bg-rose-500/15 text-rose-500"
               : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
           }`}
         >
-          {isVideoOff ? <FiVideoOff className="h-4 w-4" /> : <FiVideo className="h-4 w-4" />}
+          {isVideoOff ? <FiVideoOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <FiVideo className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
         </motion.button>
 
         <motion.button
           onClick={toggleFullscreen}
           whileTap={{ scale: 0.92 }}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
           title="Expand"
         >
           <FiMaximize2 className="h-3.5 w-3.5" />

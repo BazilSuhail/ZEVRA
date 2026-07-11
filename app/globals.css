@@ -4,30 +4,30 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ─── Light Mode (Default) ─────────────────────────────────────── */
+/* ─── Default Theme (Dark Mode First) ──────────────────────────── */
 :root {
-  /* Backgrounds */
-  --bg-primary: #fafafa;
-  --bg-secondary: #f4f4f5;
-  --bg-surface: #ffffff;
-  --bg-card: #f4f4f5;
-  --bg-inset: #e4e4e7;
-  --bg-input: rgba(255, 255, 255, 0.8);
+  /* Backgrounds — Dark Mode Default */
+  --bg-primary: #07050a;
+  --bg-secondary: #0f0c1b;
+  --bg-surface: #18142a;
+  --bg-card: #130f23;
+  --bg-inset: #0a0812;
+  --bg-input: rgba(19, 15, 35, 0.75);
 
   /* Text */
-  --text-primary: #18181b;
-  --text-secondary: #7c3aed;
-  --text-muted: #71717a;
+  --text-primary: #fafafa;
+  --text-secondary: #c084fc;
+  --text-muted: #a1a1aa;
   --text-white: #ffffff;
-  --text-body: rgba(63, 63, 70, 0.8);
-  --text-label: rgba(124, 58, 237, 0.9);
+  --text-body: rgba(228, 228, 231, 0.8);
+  --text-label: rgba(192, 132, 252, 0.9);
 
   /* Brand — Purple (primary) */
   --brand: #7c3aed;
   --brand-hover: #6d28d9;
   --brand-light: #a78bfa;
 
-  /* Accent — Indigo (secondary, links, accents) */
+  /* Accent — Indigo */
   --accent: #6366f1;
   --accent-hover: #4f46e5;
   --accent-light: #818cf8;
@@ -37,14 +37,52 @@
   --purple-400: #a855f7;
   --purple-500: #a855f7;
   --purple-600: #9333ea;
-  --purple-900: rgba(124, 58, 237, 0.1);
-  --purple-950: rgba(124, 58, 237, 0.15);
+  --purple-900: rgba(88, 28, 135, 0.3);
+  --purple-950: rgba(59, 7, 100, 0.6);
 
   /* Indigo Scale */
   --indigo-600: #4f46e5;
 
   /* Message Bubbles */
   --bubble-sent: #7c3aed;
+  --bubble-received: #18142a;
+
+  /* Borders */
+  --border: rgba(63, 63, 70, 0.6);
+  --border-purple: rgba(168, 85, 247, 0.3);
+  --border-purple-focus: #a855f7;
+
+  /* Glows */
+  --glow-purple: rgba(147, 51, 234, 0.15);
+  --glow-indigo: rgba(79, 70, 229, 0.3);
+  --glow-center: rgba(59, 7, 100, 0.2);
+
+  /* Dot Grid */
+  --dot-color: rgba(147, 51, 234, 0.35);
+}
+
+/* ─── Light Mode Override ──────────────────────────────────────── */
+.light, :where(.light, .light *) {
+  /* Backgrounds — Light Mode */
+  --bg-primary: #f8f7fc;
+  --bg-secondary: #f1f0f7;
+  --bg-surface: #ffffff;
+  --bg-card: #f4f3f9;
+  --bg-inset: #e6e4f0;
+  --bg-input: rgba(255, 255, 255, 0.85);
+
+  /* Text */
+  --text-primary: #18181b;
+  --text-secondary: #7c3aed;
+  --text-muted: #71717a;
+  --text-body: rgba(63, 63, 70, 0.8);
+  --text-label: rgba(124, 58, 237, 0.9);
+
+  /* Purple Scale */
+  --purple-900: rgba(124, 58, 237, 0.1);
+  --purple-950: rgba(124, 58, 237, 0.15);
+
+  /* Message Bubbles */
   --bubble-received: #f4f4f5;
 
   /* Borders */
@@ -59,45 +97,6 @@
 
   /* Dot Grid */
   --dot-color: rgba(124, 58, 237, 0.15);
-}
-
-/* ─── Dark Mode ────────────────────────────────────────────────── */
-.dark {
-  /* Backgrounds — Zinc */
-  --bg-primary: #09090b;
-  --bg-secondary: #18181b;
-  --bg-surface: #27272a;
-  --bg-card: #1f1f23;
-  --bg-inset: #0f0f12;
-  --bg-input: rgba(0, 0, 0, 0.6);
-
-  /* Text */
-  --text-primary: #fafafa;
-  --text-secondary: #c084fc;
-  --text-muted: #a1a1aa;
-  --text-white: #ffffff;
-  --text-body: rgba(228, 228, 231, 0.8);
-  --text-label: rgba(192, 132, 252, 0.9);
-
-  /* Purple Scale */
-  --purple-900: rgba(88, 28, 135, 0.3);
-  --purple-950: rgba(59, 7, 100, 0.6);
-
-  /* Message Bubbles */
-  --bubble-received: #27272a;
-
-  /* Borders — Zinc */
-  --border: rgba(63, 63, 70, 0.6);
-  --border-purple: rgba(168, 85, 247, 0.3);
-  --border-purple-focus: #a855f7;
-
-  /* Glows */
-  --glow-purple: rgba(147, 51, 234, 0.15);
-  --glow-indigo: rgba(79, 70, 229, 0.3);
-  --glow-center: rgba(59, 7, 100, 0.2);
-
-  /* Dot Grid */
-  --dot-color: rgba(147, 51, 234, 0.35);
 }
 
 /* ─── Dark Neumorphism (Without Shadows) ────────────────────────── */

@@ -32,15 +32,15 @@ export default function CallEndedOverlay() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -10, scale: 0.95 }}
           transition={{ type: "spring", damping: 28, stiffness: 340 }}
-          className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2"
+          className="fixed bottom-4 sm:bottom-6 left-1/2 z-[60] -translate-x-1/2"
         >
           <div
             onClick={dismissCallEnded}
-            className="flex cursor-pointer items-center gap-3 rounded-2xl bg-zinc-900/95 px-5 py-3.5 shadow-2xl ring-1 ring-zinc-700/50 backdrop-blur-xl"
+            className="flex cursor-pointer items-center gap-2.5 sm:gap-3 rounded-xl sm:rounded-2xl bg-zinc-900/95 px-4 sm:px-5 py-2.5 sm:py-3 shadow-2xl ring-1 ring-zinc-700/50 backdrop-blur-xl"
           >
             {/* Icon */}
             <div
-              className={`flex h-9 w-9 items-center justify-center rounded-full ${
+              className={`flex h-8 w-8 items-center justify-center rounded-full ${
                 callEndedInfo.endedBy === "error"
                   ? "bg-red-500/15 text-red-400"
                   : "bg-zinc-700/50 text-zinc-400"
@@ -55,7 +55,7 @@ export default function CallEndedOverlay() {
 
             {/* Text */}
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-white">
+              <span className="text-xs sm:text-sm font-medium text-white">
                 {callEndedInfo.endedBy === "you"
                   ? "Call ended"
                   : callEndedInfo.endedBy === "peer"

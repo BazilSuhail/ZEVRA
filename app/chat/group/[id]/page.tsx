@@ -463,7 +463,7 @@ export default function GroupChatPage() {
 
   // ─── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="relative flex min-w-0 flex-1 flex-col bg-[#fbfcfd] dark:bg-zinc-950">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[#fbfcfd] dark:bg-zinc-950">
       {/* Background pattern */}
       <div
         className="pointer-events-none absolute inset-0 z-0 opacity-[0.1]"

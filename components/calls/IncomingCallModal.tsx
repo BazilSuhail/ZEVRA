@@ -91,7 +91,7 @@ export default function IncomingCallModal() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
           transition={{ type: "spring", damping: 25, stiffness: 350 }}
-          className="fixed top-5 right-5 z-[70] w-full max-w-[320px]"
+          className="fixed top-3 right-3 sm:top-5 sm:right-5 z-[70] w-[calc(100%-1.5rem)] max-w-[300px] sm:max-w-[320px]"
         >
           {/* Card Wrapper with Light + Dark Mode Support */}
           <div className="relative overflow-hidden rounded-2xl border border-indigo-200/80 bg-white/90 p-3.5 shadow-xl shadow-indigo-950/10 backdrop-blur-xl dark:border-indigo-500/20 dark:bg-zinc-950/90 dark:shadow-2xl dark:shadow-indigo-950/50">

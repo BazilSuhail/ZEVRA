@@ -78,12 +78,12 @@ export default function IncomingCallToast() {
           animate={{ y: 0, opacity: 1, scale: 1 }}
           exit={{ y: -20, opacity: 0, scale: 0.95 }}
           transition={{ type: "spring", damping: 20, stiffness: 260 }}
-          className="fixed top-5 right-5 z-50 w-full max-w-xs overflow-hidden rounded-3xl border border-indigo-100/60 bg-white/90 p-4 shadow-xl shadow-indigo-500/10 backdrop-blur-xl transition-all dark:border-indigo-900/40 dark:bg-zinc-950/90 dark:shadow-purple-950/20"
+          className="fixed top-3 right-3 sm:top-5 sm:right-5 z-50 w-[calc(100%-1.5rem)] max-w-xs overflow-hidden rounded-2xl sm:rounded-3xl border border-indigo-100/60 bg-white/90 p-3 sm:p-4 shadow-xl shadow-indigo-500/10 backdrop-blur-xl transition-all dark:border-indigo-900/40 dark:bg-zinc-950/90 dark:shadow-purple-950/20"
         >
           <div className="flex items-center justify-between gap-3">
             {/* Caller Info & Avatar */}
             <div className="flex items-center gap-3 min-w-0">
-              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 text-base font-semibold text-white shadow-md shadow-indigo-500/20">
+              <div className="relative flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 text-sm sm:text-base font-semibold text-white shadow-md shadow-indigo-500/20">
                 {incomingCall.callerUsername[0]?.toUpperCase() || "?"}
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>
@@ -102,10 +102,10 @@ export default function IncomingCallToast() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <button
                 onClick={handleReject}
-                className="group relative flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-600 transition-all duration-200 hover:bg-rose-500 hover:text-white dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-rose-600 dark:hover:text-white"
+                className="group relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-600 transition-all duration-200 hover:bg-rose-500 hover:text-white dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-rose-600 dark:hover:text-white"
                 title="Decline"
                 aria-label="Decline Call"
               >
@@ -114,7 +114,7 @@ export default function IncomingCallToast() {
 
               <button
                 onClick={handleAccept}
-                className="group relative flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:bg-emerald-600 hover:shadow-emerald-500/35 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                className="group relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-all duration-200 hover:bg-emerald-600 hover:shadow-emerald-500/35 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 title="Accept"
                 aria-label="Accept Call"
               >
