@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
 import { motion, Variants } from "motion/react";
+import Link from "next/link";
 import RotatingText from "@/components/animations/RotatingText";
 
 const GLOW_BARS = [4, 9, 1, 9];
@@ -139,13 +139,15 @@ export default function Hero() {
             Zevra Protocol unifies zero-knowledge privacy with decentralized language processing. End-to-end encrypted cognitive compute for the Web3 ecosystem.
           </p>
 
-          <motion.button 
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-            className="bg-gradient-to-r from-brand to-accent text-text-white font-extrabold text-xs px-6 py-2.5 rounded-xl hover:from-brand-hover hover:to-accent-hover transition-all shadow-md whitespace-nowrap"
-          >
-            Initiate Session
-          </motion.button>
+          <Link href="/auth/login">
+            <motion.button 
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+              className="bg-gradient-to-r from-brand to-accent text-text-white font-extrabold text-xs px-6 py-2.5 rounded-xl hover:from-brand-hover hover:to-accent-hover transition-all shadow-md whitespace-nowrap"
+            >
+              Initiate Session
+            </motion.button>
+          </Link>
         </div>
       </motion.div>
     </motion.section>

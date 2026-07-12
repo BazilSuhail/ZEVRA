@@ -35,7 +35,7 @@ function MiniBarChart() {
   );
 }
 
-export default function AdvancedStats() {
+export default function Stats() {
   const timelineRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -139,7 +139,7 @@ export default function AdvancedStats() {
                 {kpi.label}
               </p>
               <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 sm:gap-0">
-                <p className="text-lg sm:text-2xl font-black text-white tracking-tighter">
+                <p className="text-lg sm:text-2xl font-semibold text-white tracking-tighter">
                   {kpi.value}
                 </p>
                 <span

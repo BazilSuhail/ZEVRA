@@ -6,6 +6,7 @@ import { FiPhone, FiPhoneOff } from "react-icons/fi";
 import { useCallStore } from "@/context/stores/call-store";
 import { getSocket } from "@/lib/socket";
 import { SOCKET_EVENTS } from "@/constants";
+import { connectToRoom } from "@/lib/livekit";
 
 export default function IncomingCallModal() {
   const { incomingCall, callStatus, ringtoneEnabled } = useCallStore();
@@ -28,16 +29,30 @@ export default function IncomingCallModal() {
     const socket = getSocket();
     if (!socket) return;
 
+    const isLiveKit = incomingCall.method === "LIVEKIT";
+
     useCallStore.getState().setActiveCall({
       callId: incomingCall.callId,
       method: incomingCall.method || "WEBRTC",
       peerId: incomingCall.callerId,
       peerUsername: incomingCall.callerUsername,
+      roomName: incomingCall.roomName,
+      serverUrl: incomingCall.serverUrl,
+      token: incomingCall.token,
     });
-    useCallStore.getState().setCallStatus("connecting");
+    useCallStore.getState().setCallStatus(isLiveKit ? "connecting" : "connecting");
     useCallStore.getState().clearIncomingCall();
 
-    socket.emit(SOCKET_EVENTS.CALL_ACCEPT, { callId: incomingCall.callId });
+    if (isLiveKit && incomingCall.serverUrl && incomingCall.token) {
+      // Connect to LiveKit room directly
+      connectToRoom(incomingCall.serverUrl, incomingCall.token).catch((err) => {
+        console.error("[IncomingCall] Failed to connect to LiveKit:", err);
+        useCallStore.getState().hangupCall("error");
+      });
+    } else {
+      // WebRTC path — emit accept to server
+      socket.emit(SOCKET_EVENTS.CALL_ACCEPT, { callId: incomingCall.callId });
+    }
   };
 
   // Play ringtone
@@ -148,7 +163,7 @@ export default function IncomingCallModal() {
                 </div>
 
                 <p className="text-[11px] font-medium text-purple-700 dark:text-purple-300">
-                  Incoming audio call...
+                  Incoming {incomingCall.method === "LIVEKIT" ? "group" : "audio"} call...
                 </p>
 
                 {/* Buttons with Darker Emerald Green for Accept */}

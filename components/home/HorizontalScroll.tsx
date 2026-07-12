@@ -1,6 +1,6 @@
 'use client';
 
-import { type Variants, motion, useScroll, useTransform } from 'motion/react';
+import { motion, useScroll, useTransform } from 'motion/react';
 import { useRef } from 'react';
 
 interface SlideData {
@@ -67,32 +67,7 @@ const slidesData: SlideData[] = [
   },
 ];
 
-const containerVariants: Variants = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.05,
-    },
-  },
-};
 
-const textChildVariants: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 30,
-    filter: 'blur(10px)',
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    filter: 'blur(0px)',
-    transition: {
-      duration: 0.6,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
 
 function BalancedText({ text, className }: { text: string; className?: string }) {
   const words = text.split(' ');
@@ -315,7 +290,7 @@ function SlideVisual({ index }: { index: number }) {
 /*                              MAIN SCROLL SECTION                            */
 /* -------------------------------------------------------------------------- */
 
-export default function HorizontalTextScroll() {
+export default function HorizontalScroll() {
   const targetRef = useRef<HTMLDivElement>(null);
 
   const { scrollYProgress } = useScroll({
@@ -327,9 +302,9 @@ export default function HorizontalTextScroll() {
   const x = useTransform(scrollYProgress, [0, 1], ['0%', `${endPercentage}%`]);
 
   return (
-    <div className="w-full text-white">
+    <div className="w-full text-white mt-12 lg:mt-30">
       <section ref={targetRef} className="relative h-[300vh] w-full">
-        <div className="sticky top-0 flex h-screen w-full items-center overflow-clip">
+        <div className="sticky top-0 md:pt-12 flex h-screen w-full items-center overflow-clip">
           <motion.div style={{ x }} className="flex h-full w-max">
             {slidesData.map((slide, index) => (
               <SlideItem key={slide.id} slide={slide} index={index} />
@@ -342,76 +317,49 @@ export default function HorizontalTextScroll() {
 }
 
 function SlideItem({ slide, index }: { slide: SlideData; index: number }) {
-  const isLeftDiagram = index % 2 === 1;
-
   return (
     <section className="flex h-screen w-screen shrink-0 items-center justify-center px-8 md:px-16 lg:px-24">
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ amount: 0.3, once: false }}
-        className="grid w-full max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-12"
-      >
-        {/* Content Section */}
-        <div
-          className={`flex flex-col justify-center lg:col-span-7 ${
-            isLeftDiagram ? 'lg:order-2' : 'lg:order-1'
-          }`}
-        >
-          <motion.div variants={textChildVariants} className="flex items-baseline gap-4">
-            <span className="font-mono text-5xl font-extralight tracking-tighter text-purple-400/40 md:text-6xl">
-              {slide.num}
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
-              <span className="font-mono text-xs tracking-widest text-purple-300 uppercase">
-                {slide.tagline}
-              </span>
-            </div>
-          </motion.div>
-
-          <motion.h2
-            variants={textChildVariants}
-            className="mt-4 text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl lg:text-5xl"
-          >
-            <BalancedText text={slide.title} />
-          </motion.h2>
-
-          <motion.p
-            variants={textChildVariants}
-            className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-300 sm:text-base"
-          >
-            <BalancedText text={slide.subtitle} />
-          </motion.p>
-
-          <motion.div
-            variants={textChildVariants}
-            className="mt-8 grid grid-cols-3 gap-4 border-t border-white/10 pt-6"
-          >
-            {slide.stats.map((stat, i) => (
-              <div key={i}>
-                <div className="font-mono text-[10px] tracking-wider text-neutral-400 uppercase">
-                  {stat.label}
-                </div>
-                <div className="mt-1 font-mono text-xs font-semibold text-purple-200">
-                  {stat.value}
-                </div>
-              </div>
-            ))}
-          </motion.div>
+      <div className="flex w-full max-w-5xl flex-col items-center text-center">
+        {/* Num + Tagline centered, same smaller size */}
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-lg font-light tracking-tighter text-purple-300">
+            {slide.num}
+          </span>
+          <span className="h-1 w-1 rounded-full bg-purple-400 animate-pulse" />
+          <span className="font-mono text-lg tracking-widest text-purple-100 ">
+            {slide.tagline}
+          </span>
         </div>
 
-        {/* Frameless Unique Visual Area */}
-        <motion.div
-          variants={textChildVariants}
-          className={`flex h-64 w-full items-center justify-center lg:col-span-5 lg:h-80 ${
-            isLeftDiagram ? 'lg:order-1' : 'lg:order-2'
-          }`}
-        >
+        {/* Title very big, 2 lines max */}
+        <h2 className="mt-6 max-w-3xl text-3xl font-bold  tracking-tight text-white sm:text-4xl md:text-5xl lg:text-6xl line-clamp-2">
+          <BalancedText text={slide.title} />
+        </h2>
+
+        {/* Subtitle normal text, 2 lines max */}
+        <p className="mt-6 max-w-xl text-sm leading-relaxed text-neutral-300 sm:text-base line-clamp-2">
+          <BalancedText text={slide.subtitle} />
+        </p>
+
+        {/* Stats */}
+        <div className="mt-8 grid w-full max-w-lg grid-cols-3 gap-4 border-t border-white/10 pt-6">
+          {slide.stats.map((stat, i) => (
+            <div key={i}>
+              <div className="font-mono text-[10px] tracking-wider text-neutral-400 uppercase">
+                {stat.label}
+              </div>
+              <div className="mt-1 font-mono text-xs font-semibold text-purple-200">
+                {stat.value}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Animation below */}
+        <div className="flex h-48 w-full items-center justify-center sm:h-56 lg:h-64">
           <SlideVisual index={index} />
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
     </section>
   );
 }

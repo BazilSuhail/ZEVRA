@@ -22,6 +22,9 @@ export interface IncomingCall {
   callerId: string;
   callerUsername: string;
   method?: CallMethod;
+  roomName?: string;
+  serverUrl?: string;
+  token?: string;
 }
 
 export interface CallEndedInfo {
@@ -58,6 +61,12 @@ export interface CallState {
   remoteStream: MediaStream | null;
   peerConnection: RTCPeerConnection | null;
 
+  // LiveKit
+  participants: string[];
+  isScreenSharing: boolean;
+  isChatOpen: boolean;
+  isParticipantsOpen: boolean;
+
   // Settings
   ringtoneEnabled: boolean;
 }
@@ -88,6 +97,12 @@ export interface CallActions {
   toggleFullscreen: () => void;
   setFullscreen: (fullscreen: boolean) => void;
 
+  // LiveKit
+  setParticipants: (participants: string[]) => void;
+  setScreenSharing: (sharing: boolean) => void;
+  toggleChat: () => void;
+  toggleParticipants: () => void;
+
   // Timer
   startTimer: () => void;
   stopTimer: () => void;
@@ -117,6 +132,10 @@ export const useCallStore = create<CallState & CallActions>()(
         localStream: null,
         remoteStream: null,
         peerConnection: null,
+        participants: [],
+        isScreenSharing: false,
+        isChatOpen: false,
+        isParticipantsOpen: false,
         ringtoneEnabled: false,
 
         // ─── Call Lifecycle ───────────────────────────────────────────
@@ -187,6 +206,10 @@ export const useCallStore = create<CallState & CallActions>()(
               isFullscreen: false,
               callDuration: 0,
               callStartedAt: null,
+              participants: [],
+              isScreenSharing: false,
+              isChatOpen: false,
+              isParticipantsOpen: false,
             },
             false,
             'hangupCall',
@@ -220,6 +243,10 @@ export const useCallStore = create<CallState & CallActions>()(
               isFullscreen: false,
               callDuration: 0,
               callStartedAt: null,
+              participants: [],
+              isScreenSharing: false,
+              isChatOpen: false,
+              isParticipantsOpen: false,
             },
             false,
             'clearCall',
@@ -288,6 +315,28 @@ export const useCallStore = create<CallState & CallActions>()(
           ),
 
         setFullscreen: (fullscreen) => set({ isFullscreen: fullscreen }, false, 'setFullscreen'),
+
+        // ─── LiveKit ──────────────────────────────────────────────────
+
+        setParticipants: (participants) =>
+          set({ participants }, false, 'setParticipants'),
+
+        setScreenSharing: (sharing) =>
+          set({ isScreenSharing: sharing }, false, 'setScreenSharing'),
+
+        toggleChat: () =>
+          set(
+            (state) => ({ isChatOpen: !state.isChatOpen, isParticipantsOpen: false }),
+            false,
+            'toggleChat',
+          ),
+
+        toggleParticipants: () =>
+          set(
+            (state) => ({ isParticipantsOpen: !state.isParticipantsOpen, isChatOpen: false }),
+            false,
+            'toggleParticipants',
+          ),
 
         // ─── Timer ────────────────────────────────────────────────────
 

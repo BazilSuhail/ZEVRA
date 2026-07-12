@@ -9,6 +9,7 @@ import {
   type StoredMessage,
 } from './db';
 import { setupWebRTCSocketHandlers } from './webrtc';
+import { setupLiveKitSocketHandlers } from './livekit-handlers';
 
 // ─── Bind Socket Events → Zustand Store ─────────────────────────────────────
 
@@ -134,6 +135,7 @@ export function bindSocketHandlers(socket: AppSocket) {
   // ─── Call Events ─────────────────────────────────────────────────
 
   setupWebRTCSocketHandlers(socket);
+  setupLiveKitSocketHandlers(socket);
 
   // ─── Heartbeat ───────────────────────────────────────────────────
 

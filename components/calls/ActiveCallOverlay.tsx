@@ -17,6 +17,7 @@ import {
 import { useCallStore } from "@/context/stores/call-store";
 import { getActiveCall, formatDuration } from "@/lib/webrtc";
 import CallTimer from "./CallTimer";
+import { GroupCallModal } from "@/components/group-call";
 
 function useAttachStream(stream: MediaStream | null) {
   const streamRef = useRef(stream);
@@ -299,6 +300,11 @@ export default function ActiveCallOverlay() {
 
   const localRef = useAttachStream(localStream);
   const remoteRef = useAttachStream(remoteStream);
+
+  // ─── Route LiveKit calls to GroupCallModal ──────────────────────
+  if (activeCall?.method === "LIVEKIT") {
+    return <GroupCallModal />;
+  }
 
   const handleHangup = () => {
     const call = getActiveCall();

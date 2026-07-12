@@ -328,7 +328,7 @@ function StackCard({
   return (
     <div
       ref={container}
-      className="h-screen flex items-center justify-center sticky -top-12 sm:-top-8 lg:-top-10 px-4 sm:px-6"
+      className="h-screen flex items-center justify-center sticky -top-12 sm:-top-8 lg:-top-22 px-4 sm:px-6"
     >
       <motion.div
         style={{

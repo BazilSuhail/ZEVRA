@@ -6,10 +6,12 @@ import Hero from "@/components/home/Hero";
 import Features from "@/components/home/Features";
 
 import StackingCards from "@/components/home/StackingCards";
-import AdvancedStats from "@/components/home/AdvancedStats";
+import Stats from "@/components/home/Stats";
 import CTA from "@/components/home/CTA";
 import Footer from "@/components/home/Footer";
-import HorizontalTextScroll from "@/components/home/HorizontalTextScroll";
+import HorizontalScroll from "@/components/home/HorizontalScroll";
+import TextMarquee from "@/components/home/TextMarquee";
+import TechStackMarquee from "@/components/home/TechStackMarquee";
 
 export default function HomeClient() {
   return (
@@ -37,11 +39,13 @@ export default function HomeClient() {
         <div className="relative z-10">
           <Navbar />
           <Hero />
-          <HorizontalTextScroll />
-          
+          <TechStackMarquee />
+          <TextMarquee /> 
+          <HorizontalScroll />
+
           <StackingCards />
           <Features />
-          <AdvancedStats />
+          <Stats />
           <CTA />
           <Footer />
         </div>
