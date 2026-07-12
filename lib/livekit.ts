@@ -20,6 +20,18 @@ export function getLiveKitRoom(): Room | null {
   return room;
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function buildLocalStream(r: Room): MediaStream | null {
+  const tracks: MediaStreamTrack[] = [];
+  for (const pub of r.localParticipant.getTrackPublications()) {
+    if (pub.track?.mediaStreamTrack) {
+      tracks.push(pub.track.mediaStreamTrack);
+    }
+  }
+  return tracks.length > 0 ? new MediaStream(tracks) : null;
+}
+
 // ─── Connection ─────────────────────────────────────────────────────────────
 
 export async function connectToRoom(
@@ -47,28 +59,50 @@ export async function connectToRoom(
 
   await room.connect(serverUrl, token);
 
-  // Enable camera + mic
+  const store = useCallStore.getState();
+  store.setCallStatus("connected");
+  store.startTimer();
+
+  // Enable camera + mic — tracks will be published asynchronously
   await Promise.all([
     room.localParticipant.setCameraEnabled(true),
     room.localParticipant.setMicrophoneEnabled(true),
   ]);
 
-  const store = useCallStore.getState();
-  store.setCallStatus("connected");
-  store.startTimer();
-
-  // Build local stream from published tracks
-  try {
-    const tracks: MediaStreamTrack[] = [];
-    for (const pub of room.localParticipant.getTrackPublications()) {
-      if (pub.track?.mediaStreamTrack) {
-        tracks.push(pub.track.mediaStreamTrack);
+  // Wait for local tracks to be published, then build the stream
+  // The TrackPublished event fires when each local track is ready
+  await new Promise<void>((resolve) => {
+    const stream = buildLocalStream(room!);
+    if (stream) {
+      store.setLocalStream(stream);
+      resolve();
+      return;
+    }
+    // No tracks yet — wait for them
+    let resolved = false;
+    const onTrackPublished = () => {
+      if (resolved) return;
+      const s = buildLocalStream(room!);
+      if (s) {
+        store.setLocalStream(s);
+        resolved = true;
+        room!.off(RoomEvent.TrackPublished, onTrackPublished);
+        resolve();
       }
-    }
-    if (tracks.length > 0) {
-      store.setLocalStream(new MediaStream(tracks));
-    }
-  } catch {}
+    };
+    room!.on(RoomEvent.TrackPublished, onTrackPublished);
+    // Fallback timeout — don't block forever
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        room!.off(RoomEvent.TrackPublished, onTrackPublished);
+        // Try one more time
+        const s = buildLocalStream(room!);
+        if (s) store.setLocalStream(s);
+        resolve();
+      }
+    }, 3000);
+  });
 
   updateParticipants(room);
 
@@ -113,12 +147,20 @@ function setupRoomListeners(r: Room) {
     updateParticipants(r);
   });
 
+  // When a local track is published, update the local stream
+  r.on(RoomEvent.TrackPublished, (pub: TrackPublication, participant: Participant) => {
+    if (participant === r.localParticipant) {
+      const stream = buildLocalStream(r);
+      if (stream) {
+        useCallStore.getState().setLocalStream(stream);
+      }
+    }
+  });
+
   r.on(RoomEvent.TrackSubscribed, (track: Track, _pub: TrackPublication, participant: Participant) => {
     if (track.kind === Track.Kind.Video) {
-      // Update remote stream for legacy 1:1 callers
       useCallStore.getState().setRemoteStream(new MediaStream([track.mediaStreamTrack]));
     }
-    // Dispatch a custom event so GroupVideoGrid can pick it up
     window.dispatchEvent(
       new CustomEvent("livekit:track-subscribed", {
         detail: { participantIdentity: participant.identity, track },
@@ -146,7 +188,6 @@ function setupRoomListeners(r: Room) {
   });
 
   r.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) => {
-    // Forward to GroupCallChat via custom event
     window.dispatchEvent(
       new CustomEvent("livekit:data-received", {
         detail: { payload, participantIdentity: participant?.identity, topic },
@@ -166,7 +207,7 @@ function updateParticipants(r: Room) {
 
 export function getParticipantCount(): number {
   if (!room) return 0;
-  return room.remoteParticipants.size + 1; // +1 for local
+  return room.remoteParticipants.size + 1;
 }
 
 // ─── Media Controls ─────────────────────────────────────────────────────────

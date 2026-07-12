@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { motion } from "motion/react";
 import { FiMic, FiMicOff, FiUser } from "react-icons/fi";
 import { useCallStore } from "@/context/stores/call-store";
@@ -14,30 +14,33 @@ function Tile({
   name,
   isLocal,
   isMuted,
-  videoTrack,
+  mediaStreamTrack,
   isSpeaking,
 }: {
   identity: string;
   name: string;
   isLocal: boolean;
   isMuted: boolean;
-  videoTrack: Track | null;
+  mediaStreamTrack: MediaStreamTrack | null;
   isSpeaking: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const attachedTrack = useRef<MediaStreamTrack | null>(null);
 
+  // Only re-assign srcObject when the ACTUAL MediaStreamTrack changes
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
 
-    if (videoTrack?.mediaStreamTrack) {
-      const stream = new MediaStream([videoTrack.mediaStreamTrack]);
-      el.srcObject = stream;
+    if (mediaStreamTrack && mediaStreamTrack !== attachedTrack.current) {
+      el.srcObject = new MediaStream([mediaStreamTrack]);
       el.play().catch(() => {});
-    } else {
+      attachedTrack.current = mediaStreamTrack;
+    } else if (!mediaStreamTrack && attachedTrack.current) {
       el.srcObject = null;
+      attachedTrack.current = null;
     }
-  }, [videoTrack]);
+  }, [mediaStreamTrack]);
 
   const displayName = name || identity.slice(0, 8);
   const initials = displayName
@@ -49,7 +52,7 @@ function Tile({
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-zinc-900">
-      {videoTrack?.mediaStreamTrack ? (
+      {mediaStreamTrack ? (
         <video
           ref={videoRef}
           autoPlay
@@ -107,7 +110,7 @@ function TileGrid({
     name: string;
     isLocal: boolean;
     isMuted: boolean;
-    videoTrack: Track | null;
+    mediaStreamTrack: MediaStreamTrack | null;
     isSpeaking: boolean;
   }[];
 }) {
@@ -176,8 +179,8 @@ interface GroupVideoGridProps {
 
 export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
   const { isMuted, localStream } = useCallStore();
-  const [remoteVideos, setRemoteVideos] = useState<
-    Map<string, { track: Track | null; name: string; muted: boolean }>
+  const [remoteTracks, setRemoteTracks] = useState<
+    Map<string, { track: MediaStreamTrack | null; name: string; muted: boolean }>
   >(new Map());
   const [speakers, setSpeakers] = useState<Set<string>>(new Set());
 
@@ -190,11 +193,13 @@ export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
       const { participantIdentity, track } = (e as CustomEvent).detail;
       if (track.kind !== "video") return;
 
-      setRemoteVideos((prev) => {
+      setRemoteTracks((prev) => {
         const next = new Map(prev);
         const existing = next.get(participantIdentity);
+        // Skip update if the actual track hasn't changed
+        if (existing?.track === track.mediaStreamTrack) return prev;
         next.set(participantIdentity, {
-          track,
+          track: track.mediaStreamTrack,
           name: existing?.name || participantIdentity.slice(0, 8),
           muted: existing?.muted ?? false,
         });
@@ -204,24 +209,29 @@ export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
 
     const handleTrackUnsubscribed = (e: Event) => {
       const { participantIdentity } = (e as CustomEvent).detail;
-      setRemoteVideos((prev) => {
+      setRemoteTracks((prev) => {
         const next = new Map(prev);
         const existing = next.get(participantIdentity);
-        if (existing) {
+        if (existing && existing.track !== null) {
           next.set(participantIdentity, { ...existing, track: null });
+          return next;
         }
-        return next;
+        return prev; // no change → no re-render
       });
     };
 
     const handleSpeakersChanged = (e: Event) => {
       const { speakers: speakerIds } = (e as CustomEvent).detail;
-      setSpeakers(new Set(speakerIds));
+      setSpeakers((prev) => {
+        const next = new Set<string>(speakerIds as string[]);
+        if (prev.size === next.size && [...prev].every((s) => next.has(s))) return prev;
+        return next;
+      });
     };
 
     const handleParticipantConnected = () => {
       room.remoteParticipants.forEach((p) => {
-        setRemoteVideos((prev) => {
+        setRemoteTracks((prev) => {
           if (prev.has(p.identity)) return prev;
           const next = new Map(prev);
           next.set(p.identity, {
@@ -235,15 +245,19 @@ export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
     };
 
     const handleParticipantDisconnected = () => {
-      setRemoteVideos((prev) => {
+      setRemoteTracks((prev) => {
         const next = new Map(prev);
         const currentIds = new Set(
           Array.from(room.remoteParticipants.values()).map((p) => p.identity),
         );
+        let changed = false;
         for (const id of next.keys()) {
-          if (!currentIds.has(id)) next.delete(id);
+          if (!currentIds.has(id)) {
+            next.delete(id);
+            changed = true;
+          }
         }
-        return next;
+        return changed ? next : prev;
       });
     };
 
@@ -265,45 +279,42 @@ export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
     };
   }, []);
 
-  // Local video track
-  const localVideoTrack = localStream
-    ? (() => {
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (!videoTrack) return null;
-        return { mediaStreamTrack: videoTrack } as Track;
-      })()
-    : null;
+  // Stable local video track reference
+  const localMediaTrack = useMemo(() => {
+    if (!localStream) return null;
+    return localStream.getVideoTracks()[0] ?? null;
+  }, [localStream]);
 
-  const remoteParticipants = Array.from(remoteVideos.entries()).map(
-    ([identity, data]) => ({
-      identity,
-      name: data.name,
-      isLocal: false,
-      isMuted: data.muted,
-      videoTrack: data.track,
-      isSpeaking: speakers.has(identity),
-    }),
-  );
+  // Build tile data — memoized to avoid new objects every render
+  const tiles = useMemo(() => {
+    const remote = Array.from(remoteTracks.entries()).map(
+      ([identity, data]) => ({
+        identity,
+        name: data.name,
+        isLocal: false as const,
+        isMuted: data.muted,
+        mediaStreamTrack: data.track,
+        isSpeaking: speakers.has(identity),
+      }),
+    );
 
-  // Build tile list: local always first, then remotes
-  const allTiles = [
-    {
-      identity: "local",
-      name: "You",
-      isLocal: true,
-      isMuted,
-      videoTrack: localVideoTrack,
-      isSpeaking: speakers.has("local"),
-    },
-    ...remoteParticipants,
-  ];
+    return [
+      {
+        identity: "local",
+        name: "You",
+        isLocal: true as const,
+        isMuted,
+        mediaStreamTrack: localMediaTrack,
+        isSpeaking: speakers.has("local"),
+      },
+      ...remote,
+    ];
+  }, [isMuted, localMediaTrack, remoteTracks, speakers]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-zinc-950">
-      {/* ─── Tile Grid ─────────────────────────────────────────── */}
-      <TileGrid tiles={allTiles} />
+      <TileGrid tiles={tiles} />
 
-      {/* ─── Connecting overlay ────────────────────────────────── */}
       {isConnecting && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-4">
