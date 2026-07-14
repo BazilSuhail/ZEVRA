@@ -28,7 +28,8 @@ export default function CallButton({
   const handleCall = useCallback(() => {
     const socket = getSocket();
     if (!socket || !socket.connected) return;
-    if (callStatus !== "idle") return;
+    // Read fresh state — avoids stale closure on callStatus
+    if (useCallStore.getState().callStatus !== "idle") return;
 
     const store = useCallStore.getState();
     const isGroup = type === "GROUP";
@@ -42,19 +43,41 @@ export default function CallButton({
     });
     store.startCall(targetUserIds, type);
 
-    // Emit to server
+    // Emit to server — with 15s timeout
+    let responded = false;
+    const timeout = setTimeout(() => {
+      if (!responded) {
+        responded = true;
+        store.hangupCall("error");
+      }
+    }, 15_000);
+
     (socket as any).emit(
       SOCKET_EVENTS.CALL_INITIATE,
       { targetUserIds, type },
       (response: any) => {
+        if (responded) return;
+        responded = true;
+        clearTimeout(timeout);
         if (!response?.success) {
           // Check for LiveKit fallback (DM target offline)
           if (response?.fallback === "LIVEKIT") {
             // Server says target offline — request LiveKit fallback
+            let fallbackResponded = false;
+            const fallbackTimeout = setTimeout(() => {
+              if (!fallbackResponded) {
+                fallbackResponded = true;
+                store.hangupCall("error");
+              }
+            }, 15_000);
+
             (socket as any).emit(
               SOCKET_EVENTS.CALL_LIVEKIT_FALLBACK,
               { targetUserIds },
               (fallbackResponse: any) => {
+                if (fallbackResponded) return;
+                fallbackResponded = true;
+                clearTimeout(fallbackTimeout);
                 if (fallbackResponse?.success) {
                   store.setActiveCall({
                     callId: `livekit-${fallbackResponse.roomName}`,
@@ -116,7 +139,7 @@ export default function CallButton({
           console.warn("[CallButton] Camera not available, proceeding without video");
         });
     }
-  }, [targetUserIds, type, peerUsername, callStatus]);
+  }, [targetUserIds, type, peerUsername]);
 
   const sizeClasses =
     size === "sm"

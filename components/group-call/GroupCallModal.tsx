@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   FiMic,
@@ -97,14 +97,20 @@ export default function GroupCallModal() {
     }
   }, [callStatus, startTimer, stopTimer, tickTimer]);
 
-  // Sync mute/video state with LiveKit
+  // Sync mute/video state with LiveKit — skip first render (initial values already correct)
+  const isFirstRender = useRef(true);
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     const room = getLiveKitRoom();
     if (!room) return;
     room.localParticipant.setMicrophoneEnabled(!isMuted);
   }, [isMuted]);
 
   useEffect(() => {
+    if (isFirstRender.current) return;
     const room = getLiveKitRoom();
     if (!room) return;
     room.localParticipant.setCameraEnabled(!isVideoOff);
@@ -118,9 +124,13 @@ export default function GroupCallModal() {
   const handleToggleScreenShare = async () => {
     const room = getLiveKitRoom();
     if (!room) return;
-    const enabled = !isScreenSharing;
-    await room.localParticipant.setScreenShareEnabled(enabled);
-    setScreenSharing(enabled);
+    try {
+      const enabled = !isScreenSharing;
+      await room.localParticipant.setScreenShareEnabled(enabled);
+      setScreenSharing(enabled);
+    } catch {
+      // Screen share failed (e.g. permission denied, browser not supported)
+    }
   };
 
   if (!activeCall || callStatus === "idle") return null;

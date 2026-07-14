@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { motion } from "motion/react";
 import { FiMic, FiMicOff, FiUser } from "react-icons/fi";
 import { useCallStore } from "@/context/stores/call-store";
 import { getLiveKitRoom } from "@/lib/livekit";
 import type { Track } from "livekit-client";
+import { RoomEvent } from "livekit-client";
 
 // ─── Single Tile (fills parent) ────────────────────────────────────────────
 
@@ -27,7 +28,6 @@ function Tile({
   const videoRef = useRef<HTMLVideoElement>(null);
   const attachedTrack = useRef<MediaStreamTrack | null>(null);
 
-  // Only re-assign srcObject when the ACTUAL MediaStreamTrack changes
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
@@ -177,94 +177,119 @@ interface GroupVideoGridProps {
   isConnecting: boolean;
 }
 
+interface RemoteTrackInfo {
+  track: MediaStreamTrack | null;
+  name: string;
+  muted: boolean;
+}
+
 export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
   const { isMuted, localStream } = useCallStore();
   const [remoteTracks, setRemoteTracks] = useState<
-    Map<string, { track: MediaStreamTrack | null; name: string; muted: boolean }>
-  >(new Map());
+    Record<string, RemoteTrackInfo>
+  >({});
   const [speakers, setSpeakers] = useState<Set<string>>(new Set());
 
-  // ─── Listen for room-level events dispatched from livekit.ts ─────
+  // Build stable local video track reference
+  const localMediaTrack = useMemo(() => {
+    if (!localStream) return null;
+    return localStream.getVideoTracks()[0] ?? null;
+  }, [localStream]);
+
+  const handleTrackSubscribed = useCallback((e: Event) => {
+    const { participantIdentity, track } = (e as CustomEvent).detail;
+    if (track.kind !== "video") return;
+
+    setRemoteTracks((prev) => {
+      const existing = prev[participantIdentity];
+      if (existing?.track === track.mediaStreamTrack) return prev;
+      return {
+        ...prev,
+        [participantIdentity]: {
+          track: track.mediaStreamTrack,
+          name: existing?.name || participantIdentity.slice(0, 8),
+          muted: existing?.muted ?? false,
+        },
+      };
+    });
+  }, []);
+
+  const handleTrackUnsubscribed = useCallback((e: Event) => {
+    const { participantIdentity } = (e as CustomEvent).detail;
+    setRemoteTracks((prev) => {
+      const existing = prev[participantIdentity];
+      if (existing && existing.track !== null) {
+        return { ...prev, [participantIdentity]: { ...existing, track: null } };
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleSpeakersChanged = useCallback((e: Event) => {
+    const { speakers: speakerIds } = (e as CustomEvent).detail;
+    setSpeakers((prev) => {
+      const next = new Set<string>(speakerIds as string[]);
+      if (prev.size === next.size && [...prev].every((s) => next.has(s))) return prev;
+      return next;
+    });
+  }, []);
+
+  // Track muted/unmuted — update muted status on remote tracks
+  const handleTrackMuted = useCallback((e: Event) => {
+    const { participantIdentity, kind } = (e as CustomEvent).detail;
+    if (kind !== "video") return;
+    setRemoteTracks((prev) => {
+      const existing = prev[participantIdentity];
+      if (!existing || existing.muted) return prev;
+      return { ...prev, [participantIdentity]: { ...existing, muted: true } };
+    });
+  }, []);
+
+  const handleTrackUnmuted = useCallback((e: Event) => {
+    const { participantIdentity, kind } = (e as CustomEvent).detail;
+    if (kind !== "video") return;
+    setRemoteTracks((prev) => {
+      const existing = prev[participantIdentity];
+      if (!existing || !existing.muted) return prev;
+      return { ...prev, [participantIdentity]: { ...existing, muted: false } };
+    });
+  }, []);
+
+  // Room-level event listeners (runs once)
   useEffect(() => {
     const room = getLiveKitRoom();
     if (!room) return;
 
-    const handleTrackSubscribed = (e: Event) => {
-      const { participantIdentity, track } = (e as CustomEvent).detail;
-      if (track.kind !== "video") return;
-
-      setRemoteTracks((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(participantIdentity);
-        // Skip update if the actual track hasn't changed
-        if (existing?.track === track.mediaStreamTrack) return prev;
-        next.set(participantIdentity, {
-          track: track.mediaStreamTrack,
-          name: existing?.name || participantIdentity.slice(0, 8),
-          muted: existing?.muted ?? false,
-        });
-        return next;
-      });
-    };
-
-    const handleTrackUnsubscribed = (e: Event) => {
-      const { participantIdentity } = (e as CustomEvent).detail;
-      setRemoteTracks((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(participantIdentity);
-        if (existing && existing.track !== null) {
-          next.set(participantIdentity, { ...existing, track: null });
-          return next;
-        }
-        return prev; // no change → no re-render
-      });
-    };
-
-    const handleSpeakersChanged = (e: Event) => {
-      const { speakers: speakerIds } = (e as CustomEvent).detail;
-      setSpeakers((prev) => {
-        const next = new Set<string>(speakerIds as string[]);
-        if (prev.size === next.size && [...prev].every((s) => next.has(s))) return prev;
-        return next;
-      });
-    };
-
     const handleParticipantConnected = () => {
       room.remoteParticipants.forEach((p) => {
         setRemoteTracks((prev) => {
-          if (prev.has(p.identity)) {
-            // Already tracked — check if we need to update the track
-            const existing = prev.get(p.identity)!;
-            const videoPub = Array.from(p.videoTrackPublications.values())[0];
-            const actualTrack = videoPub?.track?.mediaStreamTrack ?? null;
-            if (existing.track === actualTrack) return prev;
-            const next = new Map(prev);
-            next.set(p.identity, { ...existing, track: actualTrack });
-            return next;
-          }
-          // New participant — grab any already-published video track
+          const existing = prev[p.identity];
           const videoPub = Array.from(p.videoTrackPublications.values())[0];
-          const next = new Map(prev);
-          next.set(p.identity, {
-            track: videoPub?.track?.mediaStreamTrack ?? null,
-            name: p.name || p.identity.slice(0, 8),
-            muted: false,
-          });
-          return next;
+          const actualTrack = videoPub?.track?.mediaStreamTrack ?? null;
+          if (existing?.track === actualTrack) return prev;
+          return {
+            ...prev,
+            [p.identity]: {
+              track: actualTrack,
+              name: existing?.name || p.name || p.identity.slice(0, 8),
+              muted: existing?.muted ?? false,
+            },
+          };
         });
       });
     };
 
     const handleParticipantDisconnected = () => {
       setRemoteTracks((prev) => {
-        const next = new Map(prev);
         const currentIds = new Set(
           Array.from(room.remoteParticipants.values()).map((p) => p.identity),
         );
         let changed = false;
-        for (const id of next.keys()) {
-          if (!currentIds.has(id)) {
-            next.delete(id);
+        const next: Record<string, RemoteTrackInfo> = {};
+        for (const [id, data] of Object.entries(prev)) {
+          if (currentIds.has(id)) {
+            next[id] = data;
+          } else {
             changed = true;
           }
         }
@@ -275,46 +300,38 @@ export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
     window.addEventListener("livekit:track-subscribed", handleTrackSubscribed);
     window.addEventListener("livekit:track-unsubscribed", handleTrackUnsubscribed);
     window.addEventListener("livekit:speakers-changed", handleSpeakersChanged);
+    window.addEventListener("livekit:track-muted", handleTrackMuted);
+    window.addEventListener("livekit:track-unmuted", handleTrackUnmuted);
 
-    room.on("participantConnected" as any, handleParticipantConnected);
-    room.on("participantDisconnected" as any, handleParticipantDisconnected);
+    room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+    room.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
 
-    handleParticipantConnected();
-
-    // Also scan for already-subscribed tracks (race condition: tracks subscribed before mount)
+    // Mount-time scan for already-subscribed tracks (batched — one state update)
+    const initial: Record<string, RemoteTrackInfo> = {};
     room.remoteParticipants.forEach((p) => {
-      p.videoTrackPublications.forEach((pub) => {
-        if (pub.track?.mediaStreamTrack) {
-          window.dispatchEvent(
-            new CustomEvent("livekit:track-subscribed", {
-              detail: {
-                participantIdentity: p.identity,
-                track: pub.track,
-              },
-            }),
-          );
-        }
-      });
+      const videoPub = Array.from(p.videoTrackPublications.values())[0];
+      initial[p.identity] = {
+        track: videoPub?.track?.mediaStreamTrack ?? null,
+        name: p.name || p.identity.slice(0, 8),
+        muted: !videoPub || !videoPub.track || videoPub.isMuted,
+      };
     });
+    setRemoteTracks(initial);
 
     return () => {
       window.removeEventListener("livekit:track-subscribed", handleTrackSubscribed);
       window.removeEventListener("livekit:track-unsubscribed", handleTrackUnsubscribed);
       window.removeEventListener("livekit:speakers-changed", handleSpeakersChanged);
-      room.off("participantConnected" as any, handleParticipantConnected);
-      room.off("participantDisconnected" as any, handleParticipantDisconnected);
+      window.removeEventListener("livekit:track-muted", handleTrackMuted);
+      window.removeEventListener("livekit:track-unmuted", handleTrackUnmuted);
+      room.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
+      room.off(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
     };
-  }, []);
-
-  // Stable local video track reference
-  const localMediaTrack = useMemo(() => {
-    if (!localStream) return null;
-    return localStream.getVideoTracks()[0] ?? null;
-  }, [localStream]);
+  }, [handleTrackSubscribed, handleTrackUnsubscribed, handleSpeakersChanged, handleTrackMuted, handleTrackUnmuted]);
 
   // Build tile data — memoized to avoid new objects every render
   const tiles = useMemo(() => {
-    const remote = Array.from(remoteTracks.entries()).map(
+    const remote = Object.entries(remoteTracks).map(
       ([identity, data]) => ({
         identity,
         name: data.name,

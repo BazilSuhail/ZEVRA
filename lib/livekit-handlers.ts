@@ -1,6 +1,7 @@
 import type { AppSocket } from "./socket";
 import { SOCKET_EVENTS } from "@/constants";
 import { useCallStore } from "@/context/stores/call-store";
+import { connectToRoom, isRoomConnected } from "./livekit";
 
 // ─── LiveKit Socket Handlers ───────────────────────────────────────────────
 
@@ -70,6 +71,11 @@ export function setupLiveKitSocketHandlers(socket: AppSocket) {
           serverUrl: data.serverUrl,
           token: data.token,
         });
+      }
+
+      // If room is disconnected, reconnect with the fresh token
+      if (!isRoomConnected()) {
+        connectToRoom(data.serverUrl, data.token).catch(() => {});
       }
     },
   );

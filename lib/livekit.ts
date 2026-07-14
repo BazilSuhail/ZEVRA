@@ -17,6 +17,7 @@ import { useCallStore } from "@/context/stores/call-store";
 let room: Room | null = null;
 let connecting = false;
 let intentionalDisconnect = false;
+let cachedLocalStream: MediaStream | null = null;
 
 export function getLiveKitRoom(): Room | null {
   return room;
@@ -31,7 +32,26 @@ function buildLocalStream(r: Room): MediaStream | null {
       tracks.push(pub.track.mediaStreamTrack);
     }
   }
-  return tracks.length > 0 ? new MediaStream(tracks) : null;
+
+  if (tracks.length === 0) return null;
+
+  // Check if tracks changed — avoid creating a new MediaStream if identical
+  if (cachedLocalStream) {
+    const existing = cachedLocalStream.getTracks();
+    if (
+      existing.length === tracks.length &&
+      existing.every((t, i) => t === tracks[i])
+    ) {
+      return cachedLocalStream;
+    }
+  }
+
+  cachedLocalStream = new MediaStream(tracks);
+  return cachedLocalStream;
+}
+
+function isGroupCall(): boolean {
+  return useCallStore.getState().activeCall?.method === "LIVEKIT";
 }
 
 // ─── Connection ─────────────────────────────────────────────────────────────
@@ -40,7 +60,6 @@ export async function connectToRoom(
   serverUrl: string,
   token: string,
 ): Promise<Room> {
-  // Prevent double-connect race
   if (connecting) {
     throw new Error("Already connecting to a room");
   }
@@ -51,6 +70,7 @@ export async function connectToRoom(
 
   connecting = true;
   intentionalDisconnect = false;
+  cachedLocalStream = null;
 
   let newRoom: Room;
   try {
@@ -90,7 +110,7 @@ export async function connectToRoom(
   const store = useCallStore.getState();
   await new Promise<void>((resolve) => {
     let attempts = 0;
-    const maxAttempts = 25; // 25 * 200ms = 5s
+    const maxAttempts = 25;
 
     const check = () => {
       attempts++;
@@ -101,7 +121,6 @@ export async function connectToRoom(
         return;
       }
       if (attempts >= maxAttempts) {
-        // Give up — call will work but without local preview
         resolve();
         return;
       }
@@ -111,6 +130,7 @@ export async function connectToRoom(
     check();
   });
 
+  // Timer starts AFTER tracks are ready — so duration counts actual call time
   store.setCallStatus("connected");
   store.startTimer();
   updateParticipants(newRoom);
@@ -135,6 +155,7 @@ export async function disconnectFromRoom(): Promise<void> {
   store.setRemoteStream(null);
   store.setParticipants([]);
   room = null;
+  cachedLocalStream = null;
 }
 
 // ─── Listeners ──────────────────────────────────────────────────────────────
@@ -143,12 +164,10 @@ function setupRoomListeners(r: Room) {
   r.on(RoomEvent.Connected, () => {
     const store = useCallStore.getState();
     store.setCallStatus("connected");
-    store.startTimer();
     updateParticipants(r);
   });
 
   r.on(RoomEvent.Disconnected, () => {
-    // Skip if we initiated the disconnect intentionally
     if (intentionalDisconnect) return;
     useCallStore.getState().hangupCall("peer");
   });
@@ -181,7 +200,8 @@ function setupRoomListeners(r: Room) {
 
   // Remote track subscribed
   r.on(RoomEvent.TrackSubscribed, (track: Track, _pub: TrackPublication, participant: Participant) => {
-    if (track.kind === Track.Kind.Video) {
+    // For group calls, remoteStream is not used (GroupVideoGrid handles tracks directly)
+    if (track.kind === Track.Kind.Video && !isGroupCall()) {
       useCallStore.getState().setRemoteStream(new MediaStream([track.mediaStreamTrack]));
     }
     window.dispatchEvent(
@@ -193,7 +213,7 @@ function setupRoomListeners(r: Room) {
 
   // Remote track unsubscribed
   r.on(RoomEvent.TrackUnsubscribed, (track: Track, _pub: TrackPublication, participant: Participant) => {
-    if (track.kind === Track.Kind.Video) {
+    if (track.kind === Track.Kind.Video && !isGroupCall()) {
       useCallStore.getState().setRemoteStream(null);
     }
     window.dispatchEvent(
@@ -203,20 +223,20 @@ function setupRoomListeners(r: Room) {
     );
   });
 
-  // Track muted — remote participant muted
+  // Track muted
   r.on(RoomEvent.TrackMuted, (pub: TrackPublication, participant: Participant) => {
     window.dispatchEvent(
       new CustomEvent("livekit:track-muted", {
-        detail: { participantIdentity: participant.identity, trackSid: pub.trackSid },
+        detail: { participantIdentity: participant.identity, trackSid: pub.trackSid, kind: pub.kind },
       }),
     );
   });
 
-  // Track unmuted — remote participant unmuted
+  // Track unmuted
   r.on(RoomEvent.TrackUnmuted, (pub: TrackPublication, participant: Participant) => {
     window.dispatchEvent(
       new CustomEvent("livekit:track-unmuted", {
-        detail: { participantIdentity: participant.identity, trackSid: pub.trackSid },
+        detail: { participantIdentity: participant.identity, trackSid: pub.trackSid, kind: pub.kind },
       }),
     );
   });
