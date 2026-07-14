@@ -326,7 +326,7 @@ function SlideItem({ slide, index }: { slide: SlideData; index: number }) {
             {slide.num}
           </span>
           <span className="h-1 w-1 rounded-full bg-purple-400 animate-pulse" />
-          <span className="font-mono text-lg tracking-widest text-purple-100 ">
+          <span className="font-mono text-sm sm:text-lg tracking-widest text-purple-100 ">
             {slide.tagline}
           </span>
         </div>
@@ -348,7 +348,7 @@ function SlideItem({ slide, index }: { slide: SlideData; index: number }) {
               <div className="font-mono text-[10px] tracking-wider text-neutral-400 uppercase">
                 {stat.label}
               </div>
-              <div className="mt-1 font-mono text-xs font-semibold text-purple-200">
+              <div className="text-[11px] sm:text-base mt-1 font-mono text-xs font-semibold text-purple-200">
                 {stat.value}
               </div>
             </div>
@@ -356,7 +356,7 @@ function SlideItem({ slide, index }: { slide: SlideData; index: number }) {
         </div>
 
         {/* Animation below */}
-        <div className="flex h-48 w-full items-center justify-center sm:h-56 lg:h-64">
+        <div className="flex sm:mt-0 mt-25 h-48 w-full items-center justify-center sm:h-56 lg:h-64">
           <SlideVisual index={index} />
         </div>
       </div>

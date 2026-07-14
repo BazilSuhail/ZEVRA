@@ -14,6 +14,8 @@ interface ChatMessage {
   isOwn: boolean;
 }
 
+const MAX_MESSAGE_LENGTH = 500;
+
 export default function GroupCallChat({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -69,12 +71,13 @@ export default function GroupCallChat({ onClose }: { onClose: () => void }) {
   }, []);
 
   const handleSend = useCallback(() => {
-    if (!draft.trim()) return;
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed.length > MAX_MESSAGE_LENGTH) return;
 
     const room = getLiveKitRoom();
     if (!room) return;
 
-    sendChatMessage(draft.trim());
+    sendChatMessage(trimmed);
 
     // Use LiveKit identity as sender to match echoed-back messages
     const localIdentity = room.localParticipant.identity;
@@ -82,7 +85,7 @@ export default function GroupCallChat({ onClose }: { onClose: () => void }) {
 
     const msg: ChatMessage = {
       id: `${localIdentity}-${Date.now()}`,
-      text: draft.trim(),
+      text: trimmed,
       sender: localIdentity,
       senderName: localName,
       timestamp: Date.now(),
@@ -158,20 +161,34 @@ export default function GroupCallChat({ onClose }: { onClose: () => void }) {
           <input
             ref={inputRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => setDraft(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Type a message..."
+            maxLength={MAX_MESSAGE_LENGTH}
             className="min-w-0 flex-1 rounded-xl bg-zinc-800 px-3 py-2 text-xs text-white outline-none placeholder:text-zinc-500 focus:ring-1 focus:ring-indigo-500"
           />
-          <motion.button
-            onClick={handleSend}
-            disabled={!draft.trim()}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white disabled:opacity-40"
-          >
-            <FiSend className="h-3.5 w-3.5" />
-          </motion.button>
+          <div className="flex flex-col items-end gap-1">
+            <motion.button
+              onClick={handleSend}
+              disabled={!draft.trim() || draft.length > MAX_MESSAGE_LENGTH}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white disabled:opacity-40"
+            >
+              <FiSend className="h-3.5 w-3.5" />
+            </motion.button>
+            {draft.length > MAX_MESSAGE_LENGTH * 0.8 && (
+              <span
+                className={`text-[9px] ${
+                  draft.length >= MAX_MESSAGE_LENGTH
+                    ? "text-rose-400"
+                    : "text-zinc-500"
+                }`}
+              >
+                {draft.length}/{MAX_MESSAGE_LENGTH}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>

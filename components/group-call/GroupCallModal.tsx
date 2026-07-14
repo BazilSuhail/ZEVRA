@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   FiMic,
@@ -74,8 +74,6 @@ export default function GroupCallModal() {
     toggleVideo,
     toggleChat,
     toggleParticipants,
-    toggleFullscreen,
-    isFullscreen,
     hangupCall,
     setScreenSharing,
   } = useCallStore();
@@ -132,6 +130,43 @@ export default function GroupCallModal() {
       // Screen share failed (e.g. permission denied, browser not supported)
     }
   };
+
+  // Fullscreen API
+  const [isFs, setIsFs] = useState(false);
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFs(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFs(false)).catch(() => {});
+    }
+  }, []);
+
+  // Sync fullscreen state with browser
+  useEffect(() => {
+    const onFsChange = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  // Exit fullscreen on hangup
+  useEffect(() => {
+    if (callStatus === "idle" && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, [callStatus]);
+
+  // Keyboard shortcuts: P = participants, C = chat (skip if typing in input)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (e.key === "p" || e.key === "P") toggleParticipants();
+      if (e.key === "c" || e.key === "C") toggleChat();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleParticipants, toggleChat]);
 
   if (!activeCall || callStatus === "idle") return null;
 
@@ -254,10 +289,10 @@ export default function GroupCallModal() {
 
             {/* Fullscreen */}
             <ControlButton
-              onClick={toggleFullscreen}
-              label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              onClick={handleToggleFullscreen}
+              label={isFs ? "Exit fullscreen" : "Fullscreen"}
             >
-              {isFullscreen ? (
+              {isFs ? (
                 <FiMinimize2 className="h-5 w-5" />
               ) : (
                 <FiMaximize2 className="h-5 w-5" />
