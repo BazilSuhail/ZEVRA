@@ -2,13 +2,32 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { motion } from "motion/react";
-import { FiMic, FiMicOff, FiUser } from "react-icons/fi";
+import { FiMic, FiMicOff } from "react-icons/fi";
 import { useCallStore } from "@/context/stores/call-store";
 import { getLiveKitRoom } from "@/lib/livekit";
-import type { Track } from "livekit-client";
+import type { Track, RemoteParticipant, Room } from "livekit-client";
 import { RoomEvent } from "livekit-client";
 
-// ─── Single Tile (fills parent) ────────────────────────────────────────────
+// ─── Avatar Colors ──────────────────────────────────────────────────────────
+
+const AVATAR_GRADIENTS = [
+  "from-violet-600 to-indigo-700",
+  "from-emerald-500 to-teal-600",
+  "from-amber-500 to-orange-600",
+  "from-rose-500 to-pink-600",
+  "from-cyan-500 to-blue-600",
+  "from-fuchsia-500 to-purple-600",
+];
+
+function getAvatarGradient(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+}
+
+// ─── Single Tile ────────────────────────────────────────────────────────────
 
 function Tile({
   identity,
@@ -49,49 +68,63 @@ function Tile({
     .join("")
     .toUpperCase()
     .slice(0, 2);
+  const gradient = getAvatarGradient(displayName);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-zinc-900">
+    <div className="group relative h-full w-full overflow-hidden rounded-2xl bg-zinc-900">
+      {/* Speaking glow ring */}
+      {isSpeaking && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="absolute inset-0 z-0 rounded-2xl ring-2 ring-indigo-400/50 ring-inset"
+          style={{ boxShadow: "inset 0 0 30px rgba(129,140,248,0.15)" }}
+        />
+      )}
+
       {mediaStreamTrack ? (
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted={isLocal}
-          className="h-full w-full object-cover"
+          className="relative z-[1] h-full w-full object-cover"
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-600/20 text-3xl font-bold text-indigo-400 ring-2 ring-indigo-500/30 sm:h-24 sm:w-24 sm:text-4xl">
-            {initials || <FiUser className="h-10 w-10" />}
-          </div>
+        <div className="relative z-[1] flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950">
+          <motion.div
+            animate={isSpeaking ? { scale: [1, 1.05, 1] } : {}}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            className={`flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br text-3xl font-bold text-white shadow-2xl sm:h-24 sm:w-24 sm:text-4xl ${gradient} ${
+              isSpeaking ? "ring-3 ring-indigo-400/60 ring-offset-2 ring-offset-zinc-900" : ""
+            }`}
+          >
+            {initials}
+          </motion.div>
         </div>
       )}
 
-      {/* Name badge — bottom-left */}
+      {/* Name + mic badge — bottom-left */}
       <div className="absolute bottom-3 left-3 z-10">
-        <div className="flex items-center gap-1.5 rounded-lg bg-zinc-950/70 px-2.5 py-1 backdrop-blur-md">
-          <span className="text-xs font-semibold text-white">
+        <div className="flex items-center gap-2 rounded-xl bg-black/50 px-3 py-1.5 backdrop-blur-md">
+          <span className="text-[13px] font-semibold text-white drop-shadow">
             {isLocal ? "You" : displayName}
           </span>
-          {isMuted && <FiMicOff className="h-3 w-3 text-rose-400" />}
+          {isMuted && (
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-500/25">
+              <FiMicOff className="h-2.5 w-2.5 text-rose-300" />
+            </div>
+          )}
           {isSpeaking && !isMuted && (
-            <div className="flex gap-0.5">
-              <motion.span
-                animate={{ scaleY: [1, 1.5, 1] }}
-                transition={{ duration: 0.3, repeat: Infinity }}
-                className="h-2.5 w-0.5 rounded-full bg-indigo-400"
-              />
-              <motion.span
-                animate={{ scaleY: [1, 2, 1] }}
-                transition={{ duration: 0.3, repeat: Infinity, delay: 0.1 }}
-                className="h-2.5 w-0.5 rounded-full bg-indigo-400"
-              />
-              <motion.span
-                animate={{ scaleY: [1, 1.5, 1] }}
-                transition={{ duration: 0.3, repeat: Infinity, delay: 0.2 }}
-                className="h-2.5 w-0.5 rounded-full bg-indigo-400"
-              />
+            <div className="flex gap-[2px]">
+              {[0, 0.1, 0.2].map((d) => (
+                <motion.span
+                  key={d}
+                  animate={{ scaleY: [1, 1.8, 1] }}
+                  transition={{ duration: 0.35, repeat: Infinity, delay: d }}
+                  className="h-3 w-[3px] rounded-full bg-indigo-400"
+                />
+              ))}
             </div>
           )}
         </div>
@@ -255,78 +288,100 @@ export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
     });
   }, []);
 
-  // Room-level event listeners (runs once)
+  // Room-level event listeners — poll until room is available (connectToRoom is async)
   useEffect(() => {
-    const room = getLiveKitRoom();
-    if (!room) return;
+    let cleanup: (() => void) | null = null;
+    let stopped = false;
 
-    const handleParticipantConnected = () => {
-      room.remoteParticipants.forEach((p) => {
-        setRemoteTracks((prev) => {
-          const existing = prev[p.identity];
-          const videoPub = Array.from(p.videoTrackPublications.values())[0];
-          const actualTrack = videoPub?.track?.mediaStreamTrack ?? null;
-          if (existing?.track === actualTrack) return prev;
-          return {
-            ...prev,
-            [p.identity]: {
-              track: actualTrack,
-              name: existing?.name || p.name || p.identity.slice(0, 8),
-              muted: existing?.muted ?? false,
-            },
-          };
+    const register = (r: Room) => {
+      const handleParticipantConnected = () => {
+        r.remoteParticipants.forEach((p: RemoteParticipant) => {
+          setRemoteTracks((prev) => {
+            const existing = prev[p.identity];
+            const videoPub = Array.from(p.videoTrackPublications.values())[0];
+            const actualTrack = videoPub?.track?.mediaStreamTrack ?? null;
+            if (existing?.track === actualTrack) return prev;
+            return {
+              ...prev,
+              [p.identity]: {
+                track: actualTrack,
+                name: existing?.name || p.name || p.identity.slice(0, 8),
+                muted: existing?.muted ?? false,
+              },
+            };
+          });
         });
-      });
-    };
-
-    const handleParticipantDisconnected = () => {
-      setRemoteTracks((prev) => {
-        const currentIds = new Set(
-          Array.from(room.remoteParticipants.values()).map((p) => p.identity),
-        );
-        let changed = false;
-        const next: Record<string, RemoteTrackInfo> = {};
-        for (const [id, data] of Object.entries(prev)) {
-          if (currentIds.has(id)) {
-            next[id] = data;
-          } else {
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
-    };
-
-    window.addEventListener("livekit:track-subscribed", handleTrackSubscribed);
-    window.addEventListener("livekit:track-unsubscribed", handleTrackUnsubscribed);
-    window.addEventListener("livekit:speakers-changed", handleSpeakersChanged);
-    window.addEventListener("livekit:track-muted", handleTrackMuted);
-    window.addEventListener("livekit:track-unmuted", handleTrackUnmuted);
-
-    room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
-    room.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
-
-    // Mount-time scan for already-subscribed tracks (batched — one state update)
-    const initial: Record<string, RemoteTrackInfo> = {};
-    room.remoteParticipants.forEach((p) => {
-      const videoPub = Array.from(p.videoTrackPublications.values())[0];
-      initial[p.identity] = {
-        track: videoPub?.track?.mediaStreamTrack ?? null,
-        name: p.name || p.identity.slice(0, 8),
-        muted: !videoPub || !videoPub.track || videoPub.isMuted,
       };
-    });
-    setRemoteTracks(initial);
 
-    return () => {
-      window.removeEventListener("livekit:track-subscribed", handleTrackSubscribed);
-      window.removeEventListener("livekit:track-unsubscribed", handleTrackUnsubscribed);
-      window.removeEventListener("livekit:speakers-changed", handleSpeakersChanged);
-      window.removeEventListener("livekit:track-muted", handleTrackMuted);
-      window.removeEventListener("livekit:track-unmuted", handleTrackUnmuted);
-      room.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
-      room.off(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+      const handleParticipantDisconnected = () => {
+        setRemoteTracks((prev) => {
+          const currentIds = new Set(
+            Array.from(r.remoteParticipants.values()).map((p: RemoteParticipant) => p.identity),
+          );
+          let changed = false;
+          const next: Record<string, RemoteTrackInfo> = {};
+          for (const [id, data] of Object.entries(prev)) {
+            if (currentIds.has(id)) {
+              next[id] = data;
+            } else {
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      };
+
+      window.addEventListener("livekit:track-subscribed", handleTrackSubscribed);
+      window.addEventListener("livekit:track-unsubscribed", handleTrackUnsubscribed);
+      window.addEventListener("livekit:speakers-changed", handleSpeakersChanged);
+      window.addEventListener("livekit:track-muted", handleTrackMuted);
+      window.addEventListener("livekit:track-unmuted", handleTrackUnmuted);
+
+      r.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+      r.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+
+      // Mount-time scan for already-subscribed tracks (batched — one state update)
+      const initial: Record<string, RemoteTrackInfo> = {};
+      r.remoteParticipants.forEach((p: RemoteParticipant) => {
+        const videoPub = Array.from(p.videoTrackPublications.values())[0];
+        initial[p.identity] = {
+          track: videoPub?.track?.mediaStreamTrack ?? null,
+          name: p.name || p.identity.slice(0, 8),
+          muted: !videoPub || !videoPub.track || videoPub.isMuted,
+        };
+      });
+      setRemoteTracks(initial);
+
+      cleanup = () => {
+        window.removeEventListener("livekit:track-subscribed", handleTrackSubscribed);
+        window.removeEventListener("livekit:track-unsubscribed", handleTrackUnsubscribed);
+        window.removeEventListener("livekit:speakers-changed", handleSpeakersChanged);
+        window.removeEventListener("livekit:track-muted", handleTrackMuted);
+        window.removeEventListener("livekit:track-unmuted", handleTrackUnmuted);
+        r.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
+        r.off(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+      };
     };
+
+    const tryConnect = () => {
+      const r = getLiveKitRoom();
+      if (r) {
+        register(r);
+        return true;
+      }
+      return false;
+    };
+
+    // Try immediately, then poll every 100ms until room is available
+    if (!tryConnect()) {
+      const interval = setInterval(() => {
+        if (stopped) { clearInterval(interval); return; }
+        if (tryConnect()) clearInterval(interval);
+      }, 100);
+      return () => { stopped = true; clearInterval(interval); };
+    }
+
+    return () => { stopped = true; cleanup?.(); };
   }, [handleTrackSubscribed, handleTrackUnsubscribed, handleSpeakersChanged, handleTrackMuted, handleTrackUnmuted]);
 
   // Build tile data — memoized to avoid new objects every render

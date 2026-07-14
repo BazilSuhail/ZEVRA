@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { motion } from "motion/react";
-import { FiX, FiMic, FiMicOff, FiUser, FiMonitor } from "react-icons/fi";
+import { FiX, FiMic, FiMicOff, FiMonitor } from "react-icons/fi";
 import { getLiveKitRoom } from "@/lib/livekit";
 import type { RemoteParticipant } from "livekit-client";
 import { RoomEvent } from "livekit-client";
@@ -16,6 +16,23 @@ interface ParticipantInfo {
   isScreenSharing: boolean;
 }
 
+const AVATAR_COLORS = [
+  "from-violet-600 to-indigo-700",
+  "from-emerald-500 to-teal-600",
+  "from-amber-500 to-orange-600",
+  "from-rose-500 to-pink-600",
+  "from-cyan-500 to-blue-600",
+  "from-fuchsia-500 to-purple-600",
+];
+
+function getAvatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 export default function GroupCallParticipants({
   onClose,
 }: {
@@ -26,63 +43,76 @@ export default function GroupCallParticipants({
   >([]);
   const speakersRef = useRef<Set<string>>(new Set());
 
-  // Effect 1: Room event listeners (runs once)
   useEffect(() => {
-    const room = getLiveKitRoom();
-    if (!room) return;
+    let cleanup: (() => void) | null = null;
+    let stopped = false;
 
-    const updateParticipants = () => {
-      const details: ParticipantInfo[] = [];
+    const register = (room: any) => {
+      const updateParticipants = () => {
+        const details: ParticipantInfo[] = [];
 
-      // Local participant
-      details.push({
-        identity: room.localParticipant.identity,
-        name: room.localParticipant.name || "You",
-        isLocal: true,
-        isMuted: !room.localParticipant.isMicrophoneEnabled,
-        isSpeaking: speakersRef.current.has(room.localParticipant.identity),
-        isScreenSharing: room.localParticipant.isScreenShareEnabled,
-      });
-
-      // Remote participants
-      room.remoteParticipants.forEach((p: RemoteParticipant) => {
-        const audioPub = Array.from(p.audioTrackPublications.values())[0];
         details.push({
-          identity: p.identity,
-          name: p.name || p.identity.slice(0, 8),
-          isLocal: false,
-          isMuted: !audioPub || !audioPub.track,
-          isSpeaking: speakersRef.current.has(p.identity),
-          isScreenSharing: p.isScreenShareEnabled,
+          identity: room.localParticipant.identity,
+          name: room.localParticipant.name || "You",
+          isLocal: true,
+          isMuted: !room.localParticipant.isMicrophoneEnabled,
+          isSpeaking: speakersRef.current.has(room.localParticipant.identity),
+          isScreenSharing: room.localParticipant.isScreenShareEnabled,
         });
-      });
 
-      setParticipantDetails(details);
+        room.remoteParticipants.forEach((p: RemoteParticipant) => {
+          const audioPub = Array.from(p.audioTrackPublications.values())[0];
+          details.push({
+            identity: p.identity,
+            name: p.name || p.identity.slice(0, 8),
+            isLocal: false,
+            isMuted: !audioPub || !audioPub.track,
+            isSpeaking: speakersRef.current.has(p.identity),
+            isScreenSharing: p.isScreenShareEnabled,
+          });
+        });
+
+        setParticipantDetails(details);
+      };
+
+      room.on(RoomEvent.ParticipantConnected, updateParticipants);
+      room.on(RoomEvent.ParticipantDisconnected, updateParticipants);
+      room.on(RoomEvent.TrackMuted, updateParticipants);
+      room.on(RoomEvent.TrackUnmuted, updateParticipants);
+
+      updateParticipants();
+
+      cleanup = () => {
+        room.off(RoomEvent.ParticipantConnected, updateParticipants);
+        room.off(RoomEvent.ParticipantDisconnected, updateParticipants);
+        room.off(RoomEvent.TrackMuted, updateParticipants);
+        room.off(RoomEvent.TrackUnmuted, updateParticipants);
+      };
     };
 
-    room.on(RoomEvent.ParticipantConnected, updateParticipants);
-    room.on(RoomEvent.ParticipantDisconnected, updateParticipants);
-    room.on(RoomEvent.TrackMuted, updateParticipants);
-    room.on(RoomEvent.TrackUnmuted, updateParticipants);
-
-    updateParticipants();
-
-    return () => {
-      room.off(RoomEvent.ParticipantConnected, updateParticipants);
-      room.off(RoomEvent.ParticipantDisconnected, updateParticipants);
-      room.off(RoomEvent.TrackMuted, updateParticipants);
-      room.off(RoomEvent.TrackUnmuted, updateParticipants);
+    const tryConnect = () => {
+      const r = getLiveKitRoom();
+      if (r) { register(r); return true; }
+      return false;
     };
+
+    if (!tryConnect()) {
+      const interval = setInterval(() => {
+        if (stopped) { clearInterval(interval); return; }
+        if (tryConnect()) clearInterval(interval);
+      }, 100);
+      return () => { stopped = true; clearInterval(interval); };
+    }
+
+    return () => { stopped = true; cleanup?.(); };
   }, []);
 
-  // Effect 2: Speaker updates via custom event (runs once)
   useEffect(() => {
     const handleSpeakersChanged = (e: Event) => {
       const { speakers: speakerIds } = (e as CustomEvent).detail;
       const newSpeakers = new Set<string>(speakerIds as string[]);
       speakersRef.current = newSpeakers;
 
-      // Re-run participant update with new speakers
       const room = getLiveKitRoom();
       if (!room) return;
 
@@ -131,7 +161,8 @@ export default function GroupCallParticipants({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3">
         <h3 className="text-sm font-bold text-white">
-          Participants ({participantDetails.length})
+          Participants
+          <span className="ml-1.5 text-zinc-400">{participantDetails.length}</span>
         </h3>
         <button
           onClick={onClose}
@@ -143,80 +174,84 @@ export default function GroupCallParticipants({
 
       {/* List */}
       <div className="scrollbar-group flex-1 overflow-y-auto px-3 py-3">
-        <div className="space-y-1">
-          {participantDetails.map((p) => (
-            <motion.div
-              key={p.identity}
-              layout
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
-                p.isSpeaking
-                  ? "bg-indigo-600/10 ring-1 ring-indigo-500/30"
-                  : "hover:bg-zinc-800/50"
-              }`}
-            >
-              {/* Avatar */}
-              <div className="relative">
-                <div
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold ${
-                    p.isLocal
-                      ? "bg-indigo-600/20 text-indigo-400"
-                      : "bg-zinc-700 text-zinc-300"
-                  }`}
-                >
-                  {getInitials(p.name) || <FiUser className="h-4 w-4" />}
-                </div>
-                {p.isSpeaking && (
-                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-900 bg-emerald-400" />
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-xs font-semibold text-white">
-                    {p.isLocal ? "You" : p.name}
-                  </span>
-                  {p.isLocal && (
-                    <span className="rounded bg-indigo-600/80 px-1 py-0.5 text-[8px] font-bold text-white">
-                      YOU
-                    </span>
-                  )}
-                </div>
-                <span className="text-[10px] text-zinc-500">
-                  {p.identity.slice(0, 12)}...
-                </span>
-              </div>
-
-              {/* Status icons */}
-              <div className="flex items-center gap-1.5">
-                {p.isScreenSharing && (
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-600/20">
-                    <FiMonitor className="h-3 w-3 text-emerald-400" />
+        <div className="space-y-1.5">
+          {participantDetails.map((p, i) => {
+            const colorClass = getAvatarColor(p.name);
+            return (
+              <motion.div
+                key={p.identity}
+                layout
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                className={`group flex items-center gap-3 rounded-2xl px-3 py-3 transition-all ${
+                  p.isSpeaking
+                    ? "bg-white/[0.06] shadow-[inset_0_0_0_1px_rgba(129,140,248,0.2)]"
+                    : "hover:bg-white/[0.03]"
+                }`}
+              >
+                {/* Avatar */}
+                <div className="relative shrink-0">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white shadow-lg ${colorClass} ${
+                      p.isSpeaking ? "ring-2 ring-indigo-400/60 ring-offset-1 ring-offset-zinc-900" : ""
+                    }`}
+                  >
+                    {getInitials(p.name)}
                   </div>
-                )}
-                <div
-                  className={`flex h-6 w-6 items-center justify-center rounded-md ${
-                    p.isMuted ? "bg-rose-600/20" : "bg-zinc-700/50"
-                  }`}
-                >
-                  {p.isMuted ? (
-                    <FiMicOff className="h-3 w-3 text-rose-400" />
-                  ) : (
-                    <FiMic className="h-3 w-3 text-zinc-400" />
-                  )}
+                  {/* Online dot */}
+                  <span
+                    className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-zinc-900 ${
+                      p.isSpeaking ? "bg-emerald-400" : "bg-zinc-500"
+                    }`}
+                  />
                 </div>
-              </div>
-            </motion.div>
-          ))}
+
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-[13px] font-semibold text-white">
+                      {p.isLocal ? "You" : p.name}
+                    </span>
+                    {p.isLocal && (
+                      <span className="shrink-0 rounded-full bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-bold text-indigo-300">
+                        YOU
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Status icons */}
+                <div className="flex shrink-0 items-center gap-1">
+                  {p.isScreenSharing && (
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15">
+                      <FiMonitor className="h-3.5 w-3.5 text-emerald-400" />
+                    </div>
+                  )}
+                  <div
+                    className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
+                      p.isMuted
+                        ? "bg-rose-500/15 text-rose-400"
+                        : "bg-zinc-700/40 text-zinc-400"
+                    }`}
+                  >
+                    {p.isMuted ? (
+                      <FiMicOff className="h-3.5 w-3.5" />
+                    ) : (
+                      <FiMic className="h-3.5 w-3.5" />
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Footer info */}
+      {/* Footer */}
       <div className="border-t border-zinc-800/50 px-4 py-3">
         <p className="text-[10px] text-zinc-500">
-          Maximum 10 participants per group call
+          Up to 10 participants
         </p>
       </div>
     </div>

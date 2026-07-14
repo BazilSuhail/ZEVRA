@@ -20,6 +20,12 @@ import GroupVideoGrid from "./GroupVideoGrid";
 import GroupCallChat from "./GroupCallChat";
 import GroupCallParticipants from "./GroupCallParticipants";
 
+function formatDuration(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
 function ControlButton({
   onClick,
   active,
@@ -187,6 +193,40 @@ export default function GroupCallModal() {
           <GroupVideoGrid isConnecting={isConnecting} />
         </div>
 
+        {/* ─── Top Bar (group name, duration, participants) ─────── */}
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="absolute top-0 left-0 right-0 z-20"
+        >
+          <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-b from-black/60 via-black/30 to-transparent">
+            {/* Left: group name + duration */}
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20">
+                <FiUsers className="h-4 w-4 text-indigo-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white leading-tight">
+                  {activeCall.peerUsername || "Group Call"}
+                </h2>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[11px] text-zinc-300 font-medium">
+                    {callStatus === "connecting" ? "Connecting..." : formatDuration(callDuration)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: participant count */}
+            <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 backdrop-blur-md">
+              <FiUsers className="h-3.5 w-3.5 text-zinc-300" />
+              <span className="text-xs font-semibold text-white">{participantCount}</span>
+            </div>
+          </div>
+        </motion.div>
+
         {/* ─── Chat Sidebar ────────────────────────────────────── */}
         <AnimatePresence>
           {isChatOpen && (
@@ -333,7 +373,7 @@ export default function GroupCallModal() {
                 />
                 <div className="text-center">
                   <p className="text-base font-medium text-white">
-                    Joining call...
+                    Joining {activeCall.peerUsername || "group"}...
                   </p>
                   <p className="mt-1 text-sm text-zinc-400">
                     Setting up encrypted connection
