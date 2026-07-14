@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "motion/react";
 import { FiX, FiMic, FiMicOff, FiUser, FiMonitor } from "react-icons/fi";
 import { getLiveKitRoom } from "@/lib/livekit";
 import type { RemoteParticipant } from "livekit-client";
+import { RoomEvent } from "livekit-client";
 
 interface ParticipantInfo {
   identity: string;
@@ -23,9 +24,9 @@ export default function GroupCallParticipants({
   const [participantDetails, setParticipantDetails] = useState<
     ParticipantInfo[]
   >([]);
-  const [speakers, setSpeakers] = useState<Set<string>>(new Set());
+  const speakersRef = useRef<Set<string>>(new Set());
 
-  // Gather participant info from LiveKit room
+  // Effect 1: Room event listeners (runs once)
   useEffect(() => {
     const room = getLiveKitRoom();
     if (!room) return;
@@ -39,7 +40,7 @@ export default function GroupCallParticipants({
         name: room.localParticipant.name || "You",
         isLocal: true,
         isMuted: !room.localParticipant.isMicrophoneEnabled,
-        isSpeaking: speakers.has(room.localParticipant.identity),
+        isSpeaking: speakersRef.current.has(room.localParticipant.identity),
         isScreenSharing: room.localParticipant.isScreenShareEnabled,
       });
 
@@ -51,7 +52,7 @@ export default function GroupCallParticipants({
           name: p.name || p.identity.slice(0, 8),
           isLocal: false,
           isMuted: !audioPub || !audioPub.track,
-          isSpeaking: speakers.has(p.identity),
+          isSpeaking: speakersRef.current.has(p.identity),
           isScreenSharing: p.isScreenShareEnabled,
         });
       });
@@ -59,33 +60,62 @@ export default function GroupCallParticipants({
       setParticipantDetails(details);
     };
 
-    // Track speaking via custom event
-    const handleSpeakersChanged = (e: Event) => {
-      const { speakers: speakerIds } = (e as CustomEvent).detail;
-      setSpeakers(new Set(speakerIds));
-    };
-
-    const handleParticipantUpdate = () => {
-      updateParticipants();
-    };
-
-    window.addEventListener("livekit:speakers-changed", handleSpeakersChanged);
-
-    room.on("participantConnected" as any, handleParticipantUpdate);
-    room.on("participantDisconnected" as any, handleParticipantUpdate);
-    room.on("trackMuted" as any, handleParticipantUpdate);
-    room.on("trackUnmuted" as any, handleParticipantUpdate);
+    room.on(RoomEvent.ParticipantConnected, updateParticipants);
+    room.on(RoomEvent.ParticipantDisconnected, updateParticipants);
+    room.on(RoomEvent.TrackMuted, updateParticipants);
+    room.on(RoomEvent.TrackUnmuted, updateParticipants);
 
     updateParticipants();
 
     return () => {
-      window.removeEventListener("livekit:speakers-changed", handleSpeakersChanged);
-      room.off("participantConnected" as any, handleParticipantUpdate);
-      room.off("participantDisconnected" as any, handleParticipantUpdate);
-      room.off("trackMuted" as any, handleParticipantUpdate);
-      room.off("trackUnmuted" as any, handleParticipantUpdate);
+      room.off(RoomEvent.ParticipantConnected, updateParticipants);
+      room.off(RoomEvent.ParticipantDisconnected, updateParticipants);
+      room.off(RoomEvent.TrackMuted, updateParticipants);
+      room.off(RoomEvent.TrackUnmuted, updateParticipants);
     };
-  }, [speakers]);
+  }, []);
+
+  // Effect 2: Speaker updates via custom event (runs once)
+  useEffect(() => {
+    const handleSpeakersChanged = (e: Event) => {
+      const { speakers: speakerIds } = (e as CustomEvent).detail;
+      const newSpeakers = new Set<string>(speakerIds as string[]);
+      speakersRef.current = newSpeakers;
+
+      // Re-run participant update with new speakers
+      const room = getLiveKitRoom();
+      if (!room) return;
+
+      const details: ParticipantInfo[] = [];
+      details.push({
+        identity: room.localParticipant.identity,
+        name: room.localParticipant.name || "You",
+        isLocal: true,
+        isMuted: !room.localParticipant.isMicrophoneEnabled,
+        isSpeaking: newSpeakers.has(room.localParticipant.identity),
+        isScreenSharing: room.localParticipant.isScreenShareEnabled,
+      });
+
+      room.remoteParticipants.forEach((p: RemoteParticipant) => {
+        const audioPub = Array.from(p.audioTrackPublications.values())[0];
+        details.push({
+          identity: p.identity,
+          name: p.name || p.identity.slice(0, 8),
+          isLocal: false,
+          isMuted: !audioPub || !audioPub.track,
+          isSpeaking: newSpeakers.has(p.identity),
+          isScreenSharing: p.isScreenShareEnabled,
+        });
+      });
+
+      setParticipantDetails(details);
+    };
+
+    window.addEventListener("livekit:speakers-changed", handleSpeakersChanged);
+    return () => {
+      window.removeEventListener("livekit:speakers-changed", handleSpeakersChanged);
+    };
+  }, []);
 
   const getInitials = (name: string) => {
     return name

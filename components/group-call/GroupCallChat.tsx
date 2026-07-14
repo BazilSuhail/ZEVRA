@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion } from "motion/react";
 import { FiX, FiSend } from "react-icons/fi";
-import { useAuthStore } from "@/context/stores/auth-store";
-import { sendChatMessage, type LiveKitChatMessage } from "@/lib/livekit";
+import { getLiveKitRoom, sendChatMessage, type LiveKitChatMessage } from "@/lib/livekit";
 
 interface ChatMessage {
   id: string;
@@ -16,7 +15,6 @@ interface ChatMessage {
 }
 
 export default function GroupCallChat({ onClose }: { onClose: () => void }) {
-  const me = useAuthStore((s) => s.user);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -25,19 +23,26 @@ export default function GroupCallChat({ onClose }: { onClose: () => void }) {
   // Listen for incoming data channel messages via custom event
   useEffect(() => {
     const handleDataReceived = (e: Event) => {
-      const { payload, participantIdentity } = (e as CustomEvent).detail;
+      const { payload, participantIdentity, topic } = (e as CustomEvent).detail;
+      // Only process chat topic messages
+      if (topic && topic !== "chat") return;
+
       try {
         const decoded = new TextDecoder().decode(payload);
         const data: LiveKitChatMessage = JSON.parse(decoded);
 
-        // Only show chat messages (topic: "chat")
+        const room = getLiveKitRoom();
+        const isOwn = room
+          ? data.sender === room.localParticipant.identity
+          : false;
+
         const msg: ChatMessage = {
           id: `${data.sender}-${data.timestamp}`,
           text: data.message,
           sender: data.sender,
           senderName: data.senderName,
           timestamp: data.timestamp,
-          isOwn: data.sender === participantIdentity,
+          isOwn,
         };
 
         setMessages((prev) => {
@@ -66,21 +71,27 @@ export default function GroupCallChat({ onClose }: { onClose: () => void }) {
   const handleSend = useCallback(() => {
     if (!draft.trim()) return;
 
+    const room = getLiveKitRoom();
+    if (!room) return;
+
     sendChatMessage(draft.trim());
 
-    // Add own message locally (sender will be the local participant identity)
+    // Use LiveKit identity as sender to match echoed-back messages
+    const localIdentity = room.localParticipant.identity;
+    const localName = room.localParticipant.name || "You";
+
     const msg: ChatMessage = {
-      id: `own-${Date.now()}`,
+      id: `${localIdentity}-${Date.now()}`,
       text: draft.trim(),
-      sender: me?.id || "local",
-      senderName: me?.username || "You",
+      sender: localIdentity,
+      senderName: localName,
       timestamp: Date.now(),
       isOwn: true,
     };
 
     setMessages((prev) => [...prev, msg]);
     setDraft("");
-  }, [draft, me]);
+  }, [draft]);
 
   const formatTime = (ts: number) => {
     return new Date(ts).toLocaleTimeString([], {

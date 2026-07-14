@@ -15,6 +15,8 @@ import { useCallStore } from "@/context/stores/call-store";
 // ─── Singleton ──────────────────────────────────────────────────────────────
 
 let room: Room | null = null;
+let connecting = false;
+let intentionalDisconnect = false;
 
 export function getLiveKitRoom(): Room | null {
   return room;
@@ -38,79 +40,89 @@ export async function connectToRoom(
   serverUrl: string,
   token: string,
 ): Promise<Room> {
+  // Prevent double-connect race
+  if (connecting) {
+    throw new Error("Already connecting to a room");
+  }
+
   if (room) {
     await disconnectFromRoom();
   }
 
-  room = new Room({
-    adaptiveStream: true,
-    dynacast: true,
-    audioCaptureDefaults: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    },
-    videoCaptureDefaults: {
-      resolution: { width: 1280, height: 720, frameRate: 30 },
-    },
+  connecting = true;
+  intentionalDisconnect = false;
+
+  let newRoom: Room;
+  try {
+    newRoom = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      audioCaptureDefaults: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      videoCaptureDefaults: {
+        resolution: { width: 1280, height: 720, frameRate: 30 },
+      },
+    });
+  } catch (err) {
+    connecting = false;
+    throw err;
+  }
+
+  setupRoomListeners(newRoom);
+  room = newRoom;
+
+  try {
+    await newRoom.connect(serverUrl, token);
+  } catch (err) {
+    connecting = false;
+    room = null;
+    throw err;
+  }
+
+  // Enable camera + mic — fire and forget, tracks publish async
+  newRoom.localParticipant.setCameraEnabled(true).catch(() => {});
+  newRoom.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+
+  // Poll for local tracks to be published (max 5s)
+  const store = useCallStore.getState();
+  await new Promise<void>((resolve) => {
+    let attempts = 0;
+    const maxAttempts = 25; // 25 * 200ms = 5s
+
+    const check = () => {
+      attempts++;
+      const stream = buildLocalStream(newRoom);
+      if (stream) {
+        store.setLocalStream(stream);
+        resolve();
+        return;
+      }
+      if (attempts >= maxAttempts) {
+        // Give up — call will work but without local preview
+        resolve();
+        return;
+      }
+      setTimeout(check, 200);
+    };
+
+    check();
   });
 
-  setupRoomListeners(room);
-
-  await room.connect(serverUrl, token);
-
-  const store = useCallStore.getState();
   store.setCallStatus("connected");
   store.startTimer();
+  updateParticipants(newRoom);
 
-  // Enable camera + mic — tracks will be published asynchronously
-  await Promise.all([
-    room.localParticipant.setCameraEnabled(true),
-    room.localParticipant.setMicrophoneEnabled(true),
-  ]);
-
-  // Wait for local tracks to be published, then build the stream
-  // The TrackPublished event fires when each local track is ready
-  await new Promise<void>((resolve) => {
-    const stream = buildLocalStream(room!);
-    if (stream) {
-      store.setLocalStream(stream);
-      resolve();
-      return;
-    }
-    // No tracks yet — wait for them
-    let resolved = false;
-    const onTrackPublished = () => {
-      if (resolved) return;
-      const s = buildLocalStream(room!);
-      if (s) {
-        store.setLocalStream(s);
-        resolved = true;
-        room!.off(RoomEvent.TrackPublished, onTrackPublished);
-        resolve();
-      }
-    };
-    room!.on(RoomEvent.TrackPublished, onTrackPublished);
-    // Fallback timeout — don't block forever
-    setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        room!.off(RoomEvent.TrackPublished, onTrackPublished);
-        // Try one more time
-        const s = buildLocalStream(room!);
-        if (s) store.setLocalStream(s);
-        resolve();
-      }
-    }, 3000);
-  });
-
-  updateParticipants(room);
-
-  return room;
+  connecting = false;
+  return newRoom;
 }
 
 export async function disconnectFromRoom(): Promise<void> {
   if (!room) return;
+
+  intentionalDisconnect = true;
 
   try {
     room.localParticipant.setCameraEnabled(false);
@@ -136,6 +148,8 @@ function setupRoomListeners(r: Room) {
   });
 
   r.on(RoomEvent.Disconnected, () => {
+    // Skip if we initiated the disconnect intentionally
+    if (intentionalDisconnect) return;
     useCallStore.getState().hangupCall("peer");
   });
 
@@ -147,7 +161,7 @@ function setupRoomListeners(r: Room) {
     updateParticipants(r);
   });
 
-  // When a local track is published, update the local stream
+  // Local track published — rebuild local stream
   r.on(RoomEvent.TrackPublished, (pub: TrackPublication, participant: Participant) => {
     if (participant === r.localParticipant) {
       const stream = buildLocalStream(r);
@@ -157,6 +171,15 @@ function setupRoomListeners(r: Room) {
     }
   });
 
+  // Local track unpublished — rebuild local stream
+  r.on(RoomEvent.TrackUnpublished, (pub: TrackPublication, participant: Participant) => {
+    if (participant === r.localParticipant) {
+      const stream = buildLocalStream(r);
+      useCallStore.getState().setLocalStream(stream);
+    }
+  });
+
+  // Remote track subscribed
   r.on(RoomEvent.TrackSubscribed, (track: Track, _pub: TrackPublication, participant: Participant) => {
     if (track.kind === Track.Kind.Video) {
       useCallStore.getState().setRemoteStream(new MediaStream([track.mediaStreamTrack]));
@@ -168,6 +191,7 @@ function setupRoomListeners(r: Room) {
     );
   });
 
+  // Remote track unsubscribed
   r.on(RoomEvent.TrackUnsubscribed, (track: Track, _pub: TrackPublication, participant: Participant) => {
     if (track.kind === Track.Kind.Video) {
       useCallStore.getState().setRemoteStream(null);
@@ -179,6 +203,25 @@ function setupRoomListeners(r: Room) {
     );
   });
 
+  // Track muted — remote participant muted
+  r.on(RoomEvent.TrackMuted, (pub: TrackPublication, participant: Participant) => {
+    window.dispatchEvent(
+      new CustomEvent("livekit:track-muted", {
+        detail: { participantIdentity: participant.identity, trackSid: pub.trackSid },
+      }),
+    );
+  });
+
+  // Track unmuted — remote participant unmuted
+  r.on(RoomEvent.TrackUnmuted, (pub: TrackPublication, participant: Participant) => {
+    window.dispatchEvent(
+      new CustomEvent("livekit:track-unmuted", {
+        detail: { participantIdentity: participant.identity, trackSid: pub.trackSid },
+      }),
+    );
+  });
+
+  // Active speakers changed
   r.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
     window.dispatchEvent(
       new CustomEvent("livekit:speakers-changed", {
@@ -187,6 +230,7 @@ function setupRoomListeners(r: Room) {
     );
   });
 
+  // Data channel received
   r.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) => {
     window.dispatchEvent(
       new CustomEvent("livekit:data-received", {
@@ -243,7 +287,7 @@ export interface LiveKitChatMessage {
 }
 
 export function sendChatMessage(text: string): void {
-  if (!room) return;
+  if (!room || room.state !== ConnectionState.Connected) return;
 
   const msg: LiveKitChatMessage = {
     message: text,

@@ -232,10 +232,21 @@ export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
     const handleParticipantConnected = () => {
       room.remoteParticipants.forEach((p) => {
         setRemoteTracks((prev) => {
-          if (prev.has(p.identity)) return prev;
+          if (prev.has(p.identity)) {
+            // Already tracked — check if we need to update the track
+            const existing = prev.get(p.identity)!;
+            const videoPub = Array.from(p.videoTrackPublications.values())[0];
+            const actualTrack = videoPub?.track?.mediaStreamTrack ?? null;
+            if (existing.track === actualTrack) return prev;
+            const next = new Map(prev);
+            next.set(p.identity, { ...existing, track: actualTrack });
+            return next;
+          }
+          // New participant — grab any already-published video track
+          const videoPub = Array.from(p.videoTrackPublications.values())[0];
           const next = new Map(prev);
           next.set(p.identity, {
-            track: null,
+            track: videoPub?.track?.mediaStreamTrack ?? null,
             name: p.name || p.identity.slice(0, 8),
             muted: false,
           });
@@ -269,6 +280,22 @@ export default function GroupVideoGrid({ isConnecting }: GroupVideoGridProps) {
     room.on("participantDisconnected" as any, handleParticipantDisconnected);
 
     handleParticipantConnected();
+
+    // Also scan for already-subscribed tracks (race condition: tracks subscribed before mount)
+    room.remoteParticipants.forEach((p) => {
+      p.videoTrackPublications.forEach((pub) => {
+        if (pub.track?.mediaStreamTrack) {
+          window.dispatchEvent(
+            new CustomEvent("livekit:track-subscribed", {
+              detail: {
+                participantIdentity: p.identity,
+                track: pub.track,
+              },
+            }),
+          );
+        }
+      });
+    });
 
     return () => {
       window.removeEventListener("livekit:track-subscribed", handleTrackSubscribed);

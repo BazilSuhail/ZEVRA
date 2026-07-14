@@ -137,8 +137,8 @@ export default function GroupCallModal() {
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex flex-col bg-zinc-950"
       >
-        {/* ─── Video Area (full screen, no header) ──────────────── */}
-        <div className="relative min-h-0 flex-1">
+        {/* ─── Video Area (full screen) ────────────────────────── */}
+        <div className="absolute inset-0">
           <GroupVideoGrid isConnecting={isConnecting} />
         </div>
 
@@ -172,14 +172,14 @@ export default function GroupCallModal() {
           )}
         </AnimatePresence>
 
-        {/* ─── Bottom Controls Bar ─────────────────────────────── */}
-        <motion.footer
+        {/* ─── Bottom Controls Bar (floating) ──────────────────── */}
+        <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.15 }}
-          className="relative z-20 border-t border-zinc-800/50 bg-zinc-900/90 backdrop-blur-xl"
+          className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
         >
-          <div className="flex items-center justify-center gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">
+          <div className="flex items-center gap-2 rounded-2xl border border-zinc-700/50 bg-zinc-900/80 px-4 py-2.5 shadow-2xl backdrop-blur-xl sm:gap-3 sm:px-6 sm:py-3">
             {/* Mic */}
             <ControlButton
               onClick={toggleMute}
@@ -269,7 +269,7 @@ export default function GroupCallModal() {
               </motion.div>
             )}
           </AnimatePresence>
-        </motion.footer>
+        </motion.div>
 
         {/* ─── Connecting Overlay ────────────────────────────────── */}
         <AnimatePresence>
