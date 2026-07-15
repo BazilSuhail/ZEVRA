@@ -19,6 +19,37 @@ let connecting = false;
 let intentionalDisconnect = false;
 let cachedLocalStream: MediaStream | null = null;
 
+// ─── Chat Buffer ────────────────────────────────────────────────────────────
+
+export interface LiveKitChatMessage {
+  message: string;
+  sender: string;
+  senderName: string;
+  timestamp: number;
+}
+
+const chatBuffer: LiveKitChatMessage[] = [];
+const chatListeners: Set<(msg: LiveKitChatMessage) => void> = new Set();
+
+function pushChatMessage(msg: LiveKitChatMessage) {
+  chatBuffer.push(msg);
+  chatListeners.forEach((fn) => fn(msg));
+}
+
+export function getChatMessages(): LiveKitChatMessage[] {
+  return [...chatBuffer];
+}
+
+export function onChatMessage(fn: (msg: LiveKitChatMessage) => void): () => void {
+  chatListeners.add(fn);
+  return () => { chatListeners.delete(fn); };
+}
+
+function clearChatBuffer() {
+  chatBuffer.length = 0;
+  chatListeners.clear();
+}
+
 export function getLiveKitRoom(): Room | null {
   return room;
 }
@@ -28,6 +59,8 @@ export function getLiveKitRoom(): Room | null {
 function buildLocalStream(r: Room): MediaStream | null {
   const tracks: MediaStreamTrack[] = [];
   for (const pub of r.localParticipant.getTrackPublications()) {
+    // Skip screen share — it's handled separately in the grid
+    if (pub.source === ("screen_share" as any)) continue;
     if (pub.track?.mediaStreamTrack) {
       tracks.push(pub.track.mediaStreamTrack);
     }
@@ -156,6 +189,7 @@ export async function disconnectFromRoom(): Promise<void> {
   store.setParticipants([]);
   room = null;
   cachedLocalStream = null;
+  clearChatBuffer();
 }
 
 // ─── Listeners ──────────────────────────────────────────────────────────────
@@ -252,6 +286,17 @@ function setupRoomListeners(r: Room) {
 
   // Data channel received
   r.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) => {
+    // Buffer chat messages so they're available even when the chat panel is closed
+    if (topic === "chat" || !topic) {
+      try {
+        const decoded = new TextDecoder().decode(payload);
+        const data: LiveKitChatMessage = JSON.parse(decoded);
+        if (data.message && data.sender && data.timestamp) {
+          pushChatMessage(data);
+        }
+      } catch {}
+    }
+
     window.dispatchEvent(
       new CustomEvent("livekit:data-received", {
         detail: { payload, participantIdentity: participant?.identity, topic },
@@ -298,13 +343,6 @@ export async function toggleScreenShare(): Promise<boolean> {
 }
 
 // ─── Chat (Data Channel) ────────────────────────────────────────────────────
-
-export interface LiveKitChatMessage {
-  message: string;
-  sender: string;
-  senderName: string;
-  timestamp: number;
-}
 
 export function sendChatMessage(text: string): void {
   if (!room || room.state !== ConnectionState.Connected) return;

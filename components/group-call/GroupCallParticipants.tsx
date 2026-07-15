@@ -64,7 +64,7 @@ export default function GroupCallParticipants({
           const audioPub = Array.from(p.audioTrackPublications.values())[0];
           details.push({
             identity: p.identity,
-            name: p.name || p.identity.slice(0, 8),
+            name: p.name || `Participant`,
             isLocal: false,
             isMuted: !audioPub || !audioPub.track,
             isSpeaking: speakersRef.current.has(p.identity),
@@ -130,7 +130,7 @@ export default function GroupCallParticipants({
         const audioPub = Array.from(p.audioTrackPublications.values())[0];
         details.push({
           identity: p.identity,
-          name: p.name || p.identity.slice(0, 8),
+          name: p.name || `Participant`,
           isLocal: false,
           isMuted: !audioPub || !audioPub.track,
           isSpeaking: newSpeakers.has(p.identity),

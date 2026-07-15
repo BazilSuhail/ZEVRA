@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion } from "motion/react";
 import { FiX, FiSend } from "react-icons/fi";
-import { getLiveKitRoom, sendChatMessage, type LiveKitChatMessage } from "@/lib/livekit";
+import { getLiveKitRoom, sendChatMessage, getChatMessages, onChatMessage, type LiveKitChatMessage } from "@/lib/livekit";
 
 interface ChatMessage {
   id: string;
@@ -16,48 +16,46 @@ interface ChatMessage {
 
 const MAX_MESSAGE_LENGTH = 500;
 
+function toChatMessage(data: LiveKitChatMessage): ChatMessage {
+  const room = getLiveKitRoom();
+  const isOwn = room
+    ? data.sender === room.localParticipant.identity
+    : false;
+
+  return {
+    id: `${data.sender}-${data.timestamp}`,
+    text: data.message,
+    sender: data.sender,
+    senderName: data.senderName,
+    timestamp: data.timestamp,
+    isOwn,
+  };
+}
+
 export default function GroupCallChat({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Listen for incoming data channel messages via custom event
+  // Load buffered messages on mount, then subscribe to live messages
   useEffect(() => {
-    const handleDataReceived = (e: Event) => {
-      const { payload, participantIdentity, topic } = (e as CustomEvent).detail;
-      // Only process chat topic messages
-      if (topic && topic !== "chat") return;
+    // Load all previously buffered messages
+    const buffered = getChatMessages();
+    if (buffered.length > 0) {
+      setMessages(buffered.map(toChatMessage));
+    }
 
-      try {
-        const decoded = new TextDecoder().decode(payload);
-        const data: LiveKitChatMessage = JSON.parse(decoded);
+    // Subscribe to new messages
+    const unsubscribe = onChatMessage((data) => {
+      const msg = toChatMessage(data);
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    });
 
-        const room = getLiveKitRoom();
-        const isOwn = room
-          ? data.sender === room.localParticipant.identity
-          : false;
-
-        const msg: ChatMessage = {
-          id: `${data.sender}-${data.timestamp}`,
-          text: data.message,
-          sender: data.sender,
-          senderName: data.senderName,
-          timestamp: data.timestamp,
-          isOwn,
-        };
-
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
-        });
-      } catch {}
-    };
-
-    window.addEventListener("livekit:data-received", handleDataReceived);
-    return () => {
-      window.removeEventListener("livekit:data-received", handleDataReceived);
-    };
+    return unsubscribe;
   }, []);
 
   // Auto-scroll to bottom
@@ -77,18 +75,20 @@ export default function GroupCallChat({ onClose }: { onClose: () => void }) {
     const room = getLiveKitRoom();
     if (!room) return;
 
-    sendChatMessage(trimmed);
-
-    // Use LiveKit identity as sender to match echoed-back messages
     const localIdentity = room.localParticipant.identity;
     const localName = room.localParticipant.name || "You";
+    const timestamp = Date.now();
 
+    sendChatMessage(trimmed);
+
+    // Add locally — the buffer will also receive this via DataReceived,
+    // but the dedup by id prevents double display
     const msg: ChatMessage = {
-      id: `${localIdentity}-${Date.now()}`,
+      id: `${localIdentity}-${timestamp}`,
       text: trimmed,
       sender: localIdentity,
       senderName: localName,
-      timestamp: Date.now(),
+      timestamp,
       isOwn: true,
     };
 

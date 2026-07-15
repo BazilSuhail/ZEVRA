@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   FiMic,
@@ -16,7 +16,7 @@ import {
 } from "react-icons/fi";
 import { useCallStore } from "@/context/stores/call-store";
 import { getLiveKitRoom, disconnectFromRoom } from "@/lib/livekit";
-import GroupVideoGrid from "./GroupVideoGrid";
+import GroupVideoGrid, { LocalPIP } from "./GroupVideoGrid";
 import GroupCallChat from "./GroupCallChat";
 import GroupCallParticipants from "./GroupCallParticipants";
 
@@ -76,6 +76,7 @@ export default function GroupCallModal() {
     isChatOpen,
     isParticipantsOpen,
     participants,
+    localStream,
     toggleMute,
     toggleVideo,
     toggleChat,
@@ -87,6 +88,20 @@ export default function GroupCallModal() {
   const startTimer = useCallStore((s) => s.startTimer);
   const stopTimer = useCallStore((s) => s.stopTimer);
   const tickTimer = useCallStore((s) => s.tickTimer);
+
+  // Track local speaking state for PIP indicator
+  const [localSpeaking, setLocalSpeaking] = useState(false);
+  useEffect(() => {
+    const handleSpeakers = (e: Event) => {
+      const { speakers: ids } = (e as CustomEvent).detail;
+      const room = getLiveKitRoom();
+      if (room) {
+        setLocalSpeaking(ids.includes(room.localParticipant.identity));
+      }
+    };
+    window.addEventListener("livekit:speakers-changed", handleSpeakers);
+    return () => window.removeEventListener("livekit:speakers-changed", handleSpeakers);
+  }, []);
 
   // Timer management
   useEffect(() => {
@@ -179,6 +194,10 @@ export default function GroupCallModal() {
   const isConnecting = callStatus === "connecting";
   const participantCount = participants.length + 1;
 
+  // Local video track for PIP
+  const localMediaTrack = localStream?.getVideoTracks()[0] ?? null;
+  const localName = getLiveKitRoom()?.localParticipant.name || "You";
+
   return (
     <AnimatePresence>
       <motion.div
@@ -227,35 +246,53 @@ export default function GroupCallModal() {
           </div>
         </motion.div>
 
-        {/* ─── Chat Sidebar ────────────────────────────────────── */}
+        {/* ─── Chat Panel (floating right) ────────────────────── */}
         <AnimatePresence>
           {isChatOpen && (
             <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 340, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="absolute right-0 top-0 bottom-0 z-10 hidden border-l border-zinc-800/50 sm:block"
+              initial={{ scale: 0.9, opacity: 0, x: 20 }}
+              animate={{ scale: 1, opacity: 1, x: 0 }}
+              exit={{ scale: 0.9, opacity: 0, x: 20 }}
+              transition={{ type: "spring", damping: 24, stiffness: 280 }}
+              className="absolute bottom-0 right-0 top-0 z-40 w-[320px]"
             >
-              <GroupCallChat onClose={toggleChat} />
+              <div className="h-full overflow-hidden rounded-2xl border border-zinc-700/50 shadow-2xl">
+                <GroupCallChat onClose={toggleChat} />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ─── Participants Sidebar ────────────────────────────── */}
+        {/* ─── Participants Panel (floating right) ─────────────── */}
         <AnimatePresence>
           {isParticipantsOpen && (
             <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 300, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="absolute right-0 top-0 bottom-0 z-10 border-l border-zinc-800/50"
+              initial={{ scale: 0.9, opacity: 0, x: 20 }}
+              animate={{ scale: 1, opacity: 1, x: 0 }}
+              exit={{ scale: 0.9, opacity: 0, x: 20 }}
+              transition={{ type: "spring", damping: 24, stiffness: 280 }}
+              className="absolute bottom-0 right-0 top-0 z-40 w-[300px]"
             >
-              <GroupCallParticipants onClose={toggleParticipants} />
+              <div className="h-full overflow-hidden rounded-2xl border border-zinc-700/50 shadow-2xl">
+                <GroupCallParticipants onClose={toggleParticipants} />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ─── Local PIP (bottom-right, fixed) ────────────────── */}
+        {!isConnecting && (
+          <div className="absolute bottom-20 right-4 z-30 sm:bottom-24 sm:right-6">
+            <div className="h-28 w-40 overflow-hidden rounded-2xl border-2 border-zinc-700/50 shadow-2xl sm:h-36 sm:w-52">
+              <LocalPIP
+                track={localMediaTrack}
+                name={localName}
+                isMuted={isMuted}
+                isSpeaking={localSpeaking}
+              />
+            </div>
+          </div>
+        )}
 
         {/* ─── Bottom Controls Bar (floating) ──────────────────── */}
         <motion.div
