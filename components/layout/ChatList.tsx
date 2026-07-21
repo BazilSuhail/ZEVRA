@@ -9,6 +9,7 @@ import { useAuthStore } from "@/context/stores";
 import { useChatStore } from "@/context/stores/chat-store";
 import { useSocketStore } from "@/context/stores/socket-store";
 import { decryptMessage } from "@/lib/e2ee";
+import { contentPreviewText } from "@/lib/message-content";
 import { getSocket } from "@/lib/socket";
 import { SOCKET_EVENTS } from "@/constants";
 
@@ -89,7 +90,7 @@ export default function ChatList() {
       }
       // No IV/tag means legacy plaintext
       if (!r.lastMessageIv || !r.lastMessageTag) {
-        return r.lastMessageContent;
+        return contentPreviewText(r.lastMessageContent);
       }
       try {
         const plaintext = await decryptMessage({
@@ -100,7 +101,7 @@ export default function ChatList() {
           contentTag: r.lastMessageTag,
           metadata: r.lastMessageMetadata,
         });
-        if (plaintext !== null) return plaintext;
+        if (plaintext !== null) return contentPreviewText(plaintext);
       } catch {}
       return "[Encrypted message]";
     },
@@ -200,7 +201,7 @@ export default function ChatList() {
             contentTag: msg.contentTag,
             metadata: msg.metadata,
           });
-          if (plaintext !== null) preview = plaintext;
+          if (plaintext !== null) preview = contentPreviewText(plaintext);
           else preview = "[Encrypted message]";
         } catch {}
       }

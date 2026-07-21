@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type ChangeEvent } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
+import Image from "next/image";
 import {
   FiArrowLeft,
   FiCheck,
@@ -15,6 +16,9 @@ import {
   FiSmile,
   FiLoader,
   FiAlertCircle,
+  FiFile,
+  FiMaximize2,
+  FiX,
 } from "react-icons/fi";
 import { useAuthStore } from "@/context/stores";
 import { useChatStore } from "@/context/stores/chat-store";
@@ -30,6 +34,18 @@ import {
   type StoredMessage,
   type MessageReaction,
 } from "@/lib/db";
+import {
+  ALLOWED_ATTACHMENT_TYPES,
+  MAX_ATTACHMENT_BYTES,
+  buildFileContent,
+  contentPreviewText,
+  formatFileSize,
+  isImageMime,
+  parseMessageContent,
+  type AttachmentDescriptor,
+  type FileContent,
+} from "@/lib/message-content";
+import MediaViewer from "@/components/chat/MediaViewer";
 import CallButton from "@/components/calls/CallButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -86,6 +102,11 @@ export default function DMChatPage() {
   const [cursor, setCursor] = useState<number | null>(null);
   const [idbReady, setIdbReady] = useState(false);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
+  const [pendingAttachment, setPendingAttachment] =
+    useState<AttachmentDescriptor | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [viewer, setViewer] = useState<FileContent | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -548,8 +569,118 @@ export default function DMChatPage() {
   }, [socket, channelId, messages, me?.id]);
 
   // ─── Send message ────────────────────────────────────────────────────
+  // ─── Attachments: pick → validate → upload → chip ───────────────────
+
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file || uploading) return;
+
+    setError(null);
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setError("File too large — maximum size is 10 MB");
+      return;
+    }
+    if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
+      setError(
+        "Unsupported file type — images, PDF, DOC, DOCX or TXT only",
+      );
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const res = await api.upload<{
+        url: string;
+        bytes?: number;
+        width?: number;
+        height?: number;
+      }>("/uploads", file);
+      if (!res?.url) throw new Error("Upload failed");
+      setPendingAttachment({
+        url: res.url,
+        name: file.name,
+        mime: file.type,
+        size: res.bytes ?? file.size,
+        width: res.width,
+        height: res.height,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ─── Render a message's decrypted content (text | attachment) ───────
+
+  const renderMessageContent = (msg: StoredMessage) => {
+    const content = parseMessageContent(msg.plaintext);
+    if (content.kind === "text") return content.text;
+
+    const { file, caption } = content;
+    const isImage = isImageMime(file.mime);
+    const aspect =
+      file.width && file.height ? `${file.width} / ${file.height}` : "4 / 3";
+
+    return (
+      <div className="min-w-0">
+        <button
+          type="button"
+          onClick={() =>
+            setViewer({ v: 1, kind: "file", caption, file })
+          }
+          aria-label={`Open ${file.name}`}
+          className="group/img block w-full cursor-pointer text-left"
+        >
+          {isImage ? (
+            <div
+              className="relative max-h-80 w-full overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-800"
+              style={{ aspectRatio: aspect }}
+            >
+              <Image
+                src={file.url}
+                alt={file.name}
+                fill
+                sizes="(max-width: 640px) 70vw, 320px"
+                className="object-cover transition-transform duration-200 group-hover/img:scale-[1.02]"
+              />
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5 rounded-lg border border-zinc-200 bg-white px-3 py-2.5 transition-colors hover:border-indigo-300 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-indigo-500/50">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+                <FiFile className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-zinc-800 dark:text-zinc-100">
+                  {file.name}
+                </span>
+                <span className="block text-[10px] text-zinc-500 dark:text-zinc-400">
+                  {formatFileSize(file.size)}
+                </span>
+              </span>
+              <FiMaximize2 className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+            </div>
+          )}
+        </button>
+        {caption && (
+          <p className="mt-1.5 whitespace-pre-wrap break-words">{caption}</p>
+        )}
+      </div>
+    );
+  };
+
   const handleSend = async () => {
-    if (!draft.trim() || !socket || !channelId || sending) return;
+    const caption = draft.trim();
+    const attachment = pendingAttachment;
+    if (
+      (!caption && !attachment) ||
+      !socket ||
+      !channelId ||
+      sending ||
+      uploading
+    )
+      return;
 
     const memberIds = channel?.members?.map((m) => m.id);
     if (!memberIds || memberIds.length === 0) {
@@ -557,9 +688,18 @@ export default function DMChatPage() {
       return;
     }
 
-    const text = draft.trim();
+    // Attachment descriptor travels INSIDE the encrypted payload
+    const text = attachment ? buildFileContent(caption, attachment) : caption;
+    const messageType = attachment
+      ? isImageMime(attachment.mime)
+        ? "IMAGE"
+        : "FILE"
+      : "TEXT";
+    const previewLabel = contentPreviewText(text);
+
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setDraft("");
+    setPendingAttachment(null);
     setSending(true);
 
     // Encrypt + sign for every member before sending
@@ -568,7 +708,8 @@ export default function DMChatPage() {
       payload = await encryptForChannel({ channelId, memberIds, text });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to encrypt message");
-      setDraft(text);
+      setDraft(caption);
+      if (attachment) setPendingAttachment(attachment);
       setSending(false);
       return;
     }
@@ -583,7 +724,7 @@ export default function DMChatPage() {
       signature: payload.signature,
       sequenceNumber: 0,
       senderKeyEpoch: 0,
-      messageType: "TEXT",
+      messageType,
       metadata: payload.metadata,
       isDeleted: false,
       plaintext: text,
@@ -608,20 +749,21 @@ export default function DMChatPage() {
         signature: payload.signature,
         sequenceNumber: 0,
         senderKeyEpoch: 0,
-        messageType: "TEXT",
+        messageType,
         metadata: payload.metadata,
       },
       (res: any) => {
         setSending(false);
         if (!res.success) {
           setError(res.message || "Failed to send");
-          setDraft(text);
+          setDraft(caption);
+          if (attachment) setPendingAttachment(attachment);
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
         } else if (res.message?.id) {
           // Sender gets no message:new echo — push our own preview to the sidebar
           setSentPreview(channelId, {
             senderId: me?.id || "",
-            text,
+            text: previewLabel,
             at: res.message.createdAt || new Date().toISOString(),
           });
           setMessages((prev) =>
@@ -821,7 +963,7 @@ export default function DMChatPage() {
                     {msg.isDeleted ? (
                       <span className="italic text-zinc-400">Message deleted</span>
                     ) : msg.plaintext ? (
-                      msg.plaintext
+                      renderMessageContent(msg)
                     ) : (
                       <span className="flex items-center gap-2 text-zinc-400">
                         <FiLock className="h-3 w-3" />
@@ -934,9 +1076,62 @@ export default function DMChatPage() {
 
       {/* Input */}
       <div className="relative z-10 border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+        {/* Pending attachment chip / upload progress */}
+        {uploading ? (
+          <div className="mb-2 flex items-center gap-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+            <FiLoader className="h-4 w-4 shrink-0 animate-spin text-indigo-500 dark:text-indigo-400" />
+            <span className="min-w-0 flex-1 truncate text-xs font-medium text-indigo-700 dark:text-indigo-300">
+              Uploading attachment…
+            </span>
+          </div>
+        ) : pendingAttachment ? (
+          <div className="mb-2 flex items-center gap-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+            {isImageMime(pendingAttachment.mime) ? (
+              <Image
+                src={pendingAttachment.url}
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 shrink-0 rounded-md object-cover"
+              />
+            ) : (
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-white text-indigo-600 dark:bg-zinc-900 dark:text-indigo-300">
+                <FiFile className="h-4 w-4" />
+              </span>
+            )}
+            <span className="min-w-0 flex-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+              <span className="block truncate">{pendingAttachment.name}</span>
+              <span className="block text-[10px] font-normal text-indigo-400 dark:text-indigo-500">
+                {formatFileSize(pendingAttachment.size)}
+              </span>
+            </span>
+            <button
+              type="button"
+              aria-label="Remove attachment"
+              onClick={() => setPendingAttachment(null)}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-indigo-400 transition-colors hover:bg-indigo-100 hover:text-indigo-700 dark:hover:bg-indigo-500/20 dark:hover:text-indigo-200"
+            >
+              <FiX className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
+
         <div className="">
           <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
-            <button className="p-2 text-zinc-400 hover:text-zinc-600">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ALLOWED_ATTACHMENT_TYPES.join(",")}
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <button
+              type="button"
+              aria-label="Attach file"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || sending}
+              className="p-2 text-zinc-400 transition-colors hover:text-indigo-600 disabled:opacity-40 dark:hover:text-indigo-400"
+            >
               <FiPaperclip />
             </button>
             <input
@@ -946,7 +1141,9 @@ export default function DMChatPage() {
                 handleTyping();
               }}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-              placeholder="Write a message..."
+              placeholder={
+                pendingAttachment ? "Add a caption…" : "Write a message..."
+              }
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
               disabled={sending}
             />
@@ -955,7 +1152,9 @@ export default function DMChatPage() {
             </button>
             <button
               onClick={handleSend}
-              disabled={!draft.trim() || sending}
+              disabled={
+                (!draft.trim() && !pendingAttachment) || sending || uploading
+              }
               className="rounded-xl bg-indigo-600 p-2.5 text-white hover:bg-indigo-700 disabled:opacity-40"
             >
               {sending ? (
@@ -967,6 +1166,14 @@ export default function DMChatPage() {
           </div>
         </div>
       </div>
+
+      {viewer && (
+        <MediaViewer
+          file={viewer.file}
+          caption={viewer.caption}
+          onClose={() => setViewer(null)}
+        />
+      )}
     </div>
   );
 }
