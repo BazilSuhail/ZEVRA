@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/context/stores";
 import { api, setTokens } from "@/utils";
 import { srpClient } from "@/utils/srp";
+import { unlockIdentity, type UserKeys } from "@/lib/e2ee";
 import Link from "next/link";
 import Image from "next/image";
 import ClientBlob from "@/components/auth/ClientBlob";
@@ -86,7 +87,7 @@ export default function LoginPage() {
         user: { id: string; username: string; email: string };
         accessToken: string;
         refreshToken: string;
-        keys: Record<string, unknown>;
+        keys: UserKeys;
         M2: string;
       }>("/api/auth/login/finish", {
         username: username.trim(),
@@ -98,6 +99,16 @@ export default function LoginPage() {
 
       setTokens(finishRes.accessToken, finishRes.refreshToken);
       setAuth(finishRes.user, finishRes.accessToken);
+
+      // Unwrap our E2EE private keys while the password is in memory
+      if (finishRes.keys?.encryptedPrivateKey) {
+        try {
+          await unlockIdentity(finishRes.user.id, finishRes.keys, password);
+        } catch (e) {
+          console.error("[E2EE] Failed to unlock private keys:", e);
+        }
+      }
+
       router.push("/chat");
     } catch (err: any) {
       const msg =

@@ -11,6 +11,7 @@ import { connectToRoom } from "@/lib/livekit";
 interface CallButtonProps {
   targetUserIds: string[];
   type: "DM" | "GROUP";
+  channelId?: string;
   peerUsername?: string;
   size?: "sm" | "md";
   className?: string;
@@ -19,6 +20,7 @@ interface CallButtonProps {
 export default function CallButton({
   targetUserIds,
   type,
+  channelId,
   peerUsername,
   size = "md",
   className,
@@ -54,7 +56,7 @@ export default function CallButton({
 
     (socket as any).emit(
       SOCKET_EVENTS.CALL_INITIATE,
-      { targetUserIds, type },
+      { targetUserIds, type, channelId },
       (response: any) => {
         if (responded) return;
         responded = true;
@@ -73,7 +75,7 @@ export default function CallButton({
 
             (socket as any).emit(
               SOCKET_EVENTS.CALL_LIVEKIT_FALLBACK,
-              { targetUserIds },
+              { targetUserIds, channelId },
               (fallbackResponse: any) => {
                 if (fallbackResponded) return;
                 fallbackResponded = true;
@@ -139,7 +141,7 @@ export default function CallButton({
           console.warn("[CallButton] Camera not available, proceeding without video");
         });
     }
-  }, [targetUserIds, type, peerUsername]);
+  }, [targetUserIds, type, channelId, peerUsername]);
 
   const sizeClasses =
     size === "sm"

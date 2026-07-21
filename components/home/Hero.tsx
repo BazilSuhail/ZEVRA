@@ -118,10 +118,10 @@ export default function Hero() {
 
       {/* Main Center Typography */}
       <div className="mt-[32vh] sm:mt-[10vh] lg:mt-22 relative z-10 w-full max-w-7xl mx-auto text-right flex flex-col items-end justify-end">
-        <motion.h1 variants={fadeUp} className="text-[42px] xxs:text-[52px] flex items-center sm:text-7xl md:text-[100px] lg:text-[124px] font-semibold tracking-tight text-white text-right self-end">
-          Sealed<p className="text-purple-300/30 tracking-normal font-light scale-y-[0.9] ml-2">-Private</p>
+        <motion.h1 variants={fadeUp} className="text-[42px] xxs:text-[52px] flex items-center sm:text-7xl md:text-[100px] lg:text-[110px] font-medium tracking-tight text-whit text-purple-300/60  e/8 0 text-right self-end">
+          Sealed<p className="text-white/90  ext-purple-300/30 tracking-normal font-light scale-y-[0.9] ml-2">-Private</p>
         </motion.h1>
-        <motion.h2 variants={fadeUp} className="text-[46px] xxs:text-[50px] sm:text-7xl md:text-[85px] pb-8 lg:text-[90px] font-medium tracking-tighter leading-[0.9] text-right self-end overflow-hidden">
+        <motion.h2 variants={fadeUp} className="text-[46px] xxs:text-[50px] sm:text-7xl md:text-[85px] pb-8 lg:text-[85px] font-medium tracking-tighter leading-[0.9] text-right self-end overflow-hidden">
           <RotatingText
             texts={["Conversations", "Interactions", "Discussions"]}
             mainClassName="text-purple-300/50 inline"

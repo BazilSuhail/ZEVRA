@@ -13,16 +13,18 @@ export function setupLiveKitSocketHandlers(socket: AppSocket) {
   socket.on(
     SOCKET_EVENTS.LIVEKIT_GROUP_INVITE,
     (data: {
-      callId: string;
+      callId?: string;
       roomName: string;
       serverUrl: string;
       token: string;
-      inviterUsername: string;
+      inviterUsername?: string;
+      creatorId?: string;
+      creatorUsername?: string;
     }) => {
       store().setIncomingCall({
         callId: data.callId || `livekit-${data.roomName}`,
-        callerId: data.callId,
-        callerUsername: data.inviterUsername,
+        callerId: data.creatorId || data.callId || "",
+        callerUsername: data.creatorUsername || data.inviterUsername || "Someone",
         method: "LIVEKIT",
         roomName: data.roomName,
         serverUrl: data.serverUrl,

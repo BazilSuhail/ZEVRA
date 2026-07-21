@@ -13,7 +13,7 @@ export default function Footer() {
               <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
               <span>Zero-Knowledge Ecosystem</span>
             </div>
-            <h2 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-white uppercase">
+            <h2 className="text-4xl  sm:text-6xl md:text-7xl font-black tracking-tight text-white uppercase">
               SECURE BY <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-300 to-purple-600">MATH.</span>
             </h2>
           </div>

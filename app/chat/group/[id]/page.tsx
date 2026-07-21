@@ -9,6 +9,7 @@ import {
   FiLock,
   FiMoreHorizontal,
   FiPaperclip,
+  FiPhone,
   FiSend,
   FiShield,
   FiSmile,
@@ -19,8 +20,11 @@ import {
 } from "react-icons/fi";
 import { useAuthStore } from "@/context/stores";
 import { useChatStore } from "@/context/stores/chat-store";
+import { useSocketStore } from "@/context/stores/socket-store";
+import { useCallStore } from "@/context/stores/call-store";
 import { getSocket } from "@/lib/socket";
-import { getChatKey, decrypt } from "@/lib/crypto";
+import { connectToRoom } from "@/lib/livekit";
+import { decryptMessage, encryptForChannel } from "@/lib/e2ee";
 import { SOCKET_EVENTS, MessageStatus } from "@/constants";
 import { api } from "@/utils/api";
 import {
@@ -68,6 +72,7 @@ export default function GroupChatPage() {
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const typingUsers = useChatStore((s) => s.typingUsers);
+  const isConnected = useSocketStore((s) => s.isConnected);
 
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [messages, setMessages] = useState<StoredMessage[]>([]);
@@ -77,13 +82,13 @@ export default function GroupChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<number | null>(null);
   const [idbReady, setIdbReady] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const initialLoadDone = useRef(false);
+  const initialLoadChannel = useRef<string | null>(null);
 
   const socket = getSocket();
   const channelTyping = typingUsers[channelId] || new Set();
@@ -92,6 +97,7 @@ export default function GroupChatPage() {
   // ─── Track active room for unread counting ───────────────────────────
   const setActiveRoom = useChatStore((s) => s.setActiveRoom);
   const resetUnread = useChatStore((s) => s.resetUnread);
+  const setSentPreview = useChatStore((s) => s.setSentPreview);
   useEffect(() => {
     if (channelId) {
       setActiveRoom(channelId);
@@ -121,10 +127,86 @@ export default function GroupChatPage() {
       .catch(() => setError("Failed to load channel"));
   }, [channelId, isAuthenticated]);
 
+  // ─── Ongoing group call: detect + join ───────────────────────────────
+  const callStatus = useCallStore((s) => s.callStatus);
+  const [groupCall, setGroupCall] = useState<{ active: boolean; count: number }>({
+    active: false,
+    count: 0,
+  });
+
+  const checkGroupCall = useCallback(() => {
+    const s = getSocket();
+    if (!s || !s.connected || !channelId) return;
+    s.emit(SOCKET_EVENTS.CALL_LIVEKIT_ACTIVE, { channelId }, (res: any) => {
+      if (res?.success) {
+        setGroupCall({ active: !!res.active, count: res.participantCount ?? 0 });
+      } else {
+        setGroupCall((prev) => (prev.active ? { active: false, count: 0 } : prev));
+      }
+    });
+  }, [channelId]);
+
+  useEffect(() => {
+    if (!isConnected || !channelId) return;
+    checkGroupCall();
+    const interval = setInterval(checkGroupCall, 15_000);
+    return () => clearInterval(interval);
+  }, [isConnected, channelId, checkGroupCall]);
+
+  // Someone invites us to this group's call → it's active now
+  useEffect(() => {
+    const s = getSocket();
+    if (!s) return;
+    const onInvite = (data: any) => {
+      if (data?.roomName === `group-${channelId}`) {
+        setGroupCall((prev) => ({ active: true, count: Math.max(prev.count, 1) }));
+      }
+    };
+    s.on(SOCKET_EVENTS.LIVEKIT_GROUP_INVITE, onInvite);
+    return () => {
+      s.off(SOCKET_EVENTS.LIVEKIT_GROUP_INVITE, onInvite);
+    };
+  }, [channelId]);
+
+  const joinGroupCall = useCallback(() => {
+    const s = getSocket();
+    if (!s || !s.connected || !channelId) return;
+    if (useCallStore.getState().callStatus !== "idle") return;
+
+    const roomName = `group-${channelId}`;
+    s.emit(SOCKET_EVENTS.CALL_LIVEKIT_JOIN_GROUP, { roomName }, async (res: any) => {
+      if (!res?.success) {
+        setError(
+          res?.error === "NOT_MEMBER"
+            ? "You're not a member of this call"
+            : "Failed to join the call",
+        );
+        checkGroupCall();
+        return;
+      }
+      const store = useCallStore.getState();
+      store.setActiveCall({
+        callId: `livekit-${res.roomName}`,
+        method: "LIVEKIT",
+        peerId: "",
+        peerUsername: channel?.name || "Group call",
+        roomName: res.roomName,
+        serverUrl: res.serverUrl,
+        token: res.token,
+      });
+      try {
+        await connectToRoom(res.serverUrl, res.token);
+      } catch (err) {
+        console.error("[GroupCall] join failed:", err);
+        store.hangupCall("error");
+      }
+    });
+  }, [channelId, channel?.name, checkGroupCall]);
+
   // ─── Step 1: Load from IDB instantly ─────────────────────────────────
   useEffect(() => {
-    if (!channelId || initialLoadDone.current) return;
-    initialLoadDone.current = true;
+    if (!channelId || initialLoadChannel.current === channelId) return;
+    initialLoadChannel.current = channelId;
 
     (async () => {
       try {
@@ -143,7 +225,7 @@ export default function GroupChatPage() {
 
   // ─── Step 2: Fetch from server & merge ──────────────────────────────
   const fetchAndMerge = useCallback(
-    (loadCursor?: string | null) => {
+    (loadCursor?: number | null) => {
       if (!socket || !channelId) return;
 
       if (!idbReady && !loadCursor) {
@@ -154,7 +236,12 @@ export default function GroupChatPage() {
 
       socket.emit(
         SOCKET_EVENTS.GET_MESSAGES,
-        { channelId, limit: 50, cursor: loadCursor || undefined },
+        {
+          channelId,
+          limit: 50,
+          cursor: loadCursor ?? undefined,
+          mode: loadCursor != null ? "before" : "latest",
+        },
         async (res: any) => {
           if (!res.success) {
             setError(res.error || "Failed to load messages");
@@ -163,19 +250,22 @@ export default function GroupChatPage() {
             return;
           }
 
-          const chatKey = getChatKey(channelId);
           const serverMessages: StoredMessage[] = [];
 
           for (const m of res.messages || []) {
-            let plaintext = "";
-            if (m.contentIv && m.contentTag && chatKey) {
-              try {
-                plaintext = await decrypt(m.encryptedContent, m.contentIv, m.contentTag, chatKey);
-              } catch {
-                plaintext = "[Encrypted message]";
-              }
-            } else {
-              plaintext = m.encryptedContent || "";
+            let plaintext: string;
+            try {
+              const decrypted = await decryptMessage({
+                channelId,
+                senderId: m.senderId,
+                encryptedContent: m.encryptedContent,
+                contentIv: m.contentIv,
+                contentTag: m.contentTag,
+                metadata: m.metadata,
+              });
+              plaintext = decrypted ?? "[Encrypted message]";
+            } catch {
+              plaintext = "[Encrypted message]";
             }
 
             serverMessages.push({
@@ -245,16 +335,16 @@ export default function GroupChatPage() {
   );
 
   useEffect(() => {
-    if (!channelId || !isAuthenticated) return;
+    if (!channelId || !isAuthenticated || !isConnected) return;
     const timer = setTimeout(() => fetchAndMerge(), idbReady ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [channelId, isAuthenticated, fetchAndMerge, idbReady]);
+  }, [channelId, isAuthenticated, fetchAndMerge, idbReady, isConnected]);
 
-  // ─── Join channel ────────────────────────────────────────────────────
+  // ─── Join channel (re-joins after reconnect) ────────────────────────
   useEffect(() => {
-    if (!socket || !channelId || !isAuthenticated) return;
+    if (!socket || !channelId || !isAuthenticated || !isConnected) return;
     socket.emit(SOCKET_EVENTS.JOIN_CHANNEL, { channelId }, () => {});
-  }, [socket, channelId, isAuthenticated]);
+  }, [socket, channelId, isAuthenticated, isConnected]);
 
   // ─── Listen for new messages ─────────────────────────────────────────
   useEffect(() => {
@@ -264,43 +354,44 @@ export default function GroupChatPage() {
       if (msg.channelId !== channelId) return;
       const msgId = msg.id || msg.messageId || `temp-${Date.now()}`;
 
+      let plaintext: string;
+      try {
+        const decrypted = await decryptMessage({
+          channelId,
+          senderId: msg.senderId,
+          encryptedContent: msg.encryptedContent,
+          contentIv: msg.contentIv,
+          contentTag: msg.contentTag,
+          metadata: msg.metadata,
+        });
+        plaintext = decrypted ?? "[Encrypted message]";
+      } catch {
+        plaintext = "[Encrypted message]";
+      }
+
+      const stored: StoredMessage = {
+        id: msgId,
+        channelId: msg.channelId,
+        senderId: msg.senderId,
+        ciphertext: msg.encryptedContent,
+        iv: msg.contentIv,
+        tag: msg.contentTag,
+        signature: msg.signature || "",
+        sequenceNumber: msg.sequenceNumber || 0,
+        senderKeyEpoch: msg.senderKeyEpoch || 0,
+        messageType: msg.messageType || "TEXT",
+        metadata: msg.metadata || null,
+        isDeleted: msg.isDeleted || false,
+        plaintext,
+        status: MessageStatus.DELIVERED,
+        createdAt: msg.createdAt || new Date().toISOString(),
+        updatedAt: msg.updatedAt || new Date().toISOString(),
+      };
+
+      saveMessage(stored).catch(() => {});
+
       setMessages((prev) => {
         if (prev.some((m) => m.id === msgId)) return prev;
-
-        const chatKey = getChatKey(channelId);
-        let plaintext = msg.encryptedContent || "";
-
-        if (chatKey && msg.contentIv && msg.contentTag) {
-          decrypt(msg.encryptedContent, msg.contentIv, msg.contentTag, chatKey)
-            .then((pt) => {
-              setMessages((p) =>
-                p.map((m) => (m.id === msgId ? { ...m, plaintext: pt } : m)),
-              );
-            })
-            .catch(() => {});
-        }
-
-        const stored: StoredMessage = {
-          id: msgId,
-          channelId: msg.channelId,
-          senderId: msg.senderId,
-          ciphertext: msg.encryptedContent,
-          iv: msg.contentIv,
-          tag: msg.contentTag,
-          signature: msg.signature || "",
-          sequenceNumber: msg.sequenceNumber || 0,
-          senderKeyEpoch: msg.senderKeyEpoch || 0,
-          messageType: msg.messageType || "TEXT",
-          metadata: msg.metadata || null,
-          isDeleted: msg.isDeleted || false,
-          plaintext: plaintext || "",
-          status: MessageStatus.DELIVERED,
-          createdAt: msg.createdAt || new Date().toISOString(),
-          updatedAt: msg.updatedAt || new Date().toISOString(),
-        };
-
-        saveMessage(stored).catch(() => {});
-
         return [...prev, stored];
       });
 
@@ -356,23 +447,40 @@ export default function GroupChatPage() {
   const handleSend = async () => {
     if (!draft.trim() || !socket || !channelId || sending) return;
 
+    const memberIds = channel?.members?.map((m) => m.id);
+    if (!memberIds || memberIds.length === 0) {
+      setError("Channel members not loaded yet — try again in a moment");
+      return;
+    }
+
     const text = draft.trim();
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setDraft("");
     setSending(true);
 
+    // Encrypt + sign for every member before sending
+    let payload: Awaited<ReturnType<typeof encryptForChannel>>;
+    try {
+      payload = await encryptForChannel({ channelId, memberIds, text });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to encrypt message");
+      setDraft(text);
+      setSending(false);
+      return;
+    }
+
     const optimistic: StoredMessage = {
       id: tempId,
       channelId,
       senderId: me?.id || "",
-      ciphertext: text,
-      iv: "",
-      tag: "",
-      signature: "",
-      sequenceNumber: Date.now(),
+      ciphertext: payload.encryptedContent,
+      iv: payload.contentIv,
+      tag: payload.contentTag,
+      signature: payload.signature,
+      sequenceNumber: 0,
       senderKeyEpoch: 0,
       messageType: "TEXT",
-      metadata: null,
+      metadata: payload.metadata,
       isDeleted: false,
       plaintext: text,
       status: MessageStatus.SENT,
@@ -390,13 +498,14 @@ export default function GroupChatPage() {
       SOCKET_EVENTS.SEND_MESSAGE,
       {
         channelId,
-        encryptedContent: text,
-        contentIv: "",
-        contentTag: "",
-        signature: "",
-        sequenceNumber: Date.now(),
+        encryptedContent: payload.encryptedContent,
+        contentIv: payload.contentIv,
+        contentTag: payload.contentTag,
+        signature: payload.signature,
+        sequenceNumber: 0,
         senderKeyEpoch: 0,
         messageType: "TEXT",
+        metadata: payload.metadata,
       },
       (res: any) => {
         setSending(false);
@@ -405,12 +514,19 @@ export default function GroupChatPage() {
           setDraft(text);
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
         } else if (res.message?.id) {
+          // Sender gets no message:new echo — push our own preview to the sidebar
+          setSentPreview(channelId, {
+            senderId: me?.id || "",
+            text,
+            at: res.message.createdAt || new Date().toISOString(),
+          });
           setMessages((prev) =>
             prev.map((m) =>
               m.id === tempId
                 ? {
                     ...m,
                     id: res.message.id,
+                    sequenceNumber: res.message.sequenceNumber ?? m.sequenceNumber,
                     status: MessageStatus.DELIVERED,
                     createdAt: res.message.createdAt || m.createdAt,
                   }
@@ -508,6 +624,7 @@ export default function GroupChatPage() {
             <CallButton
               targetUserIds={channel.members.filter((m) => m.id !== me?.id).map((m) => m.id)}
               type="GROUP"
+              channelId={channelId}
               peerUsername={channel.name || "Group"}
             />
           )}
@@ -525,6 +642,28 @@ export default function GroupChatPage() {
         <div className="mx-4 mt-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
           <FiAlertCircle className="h-4 w-4 shrink-0" />
           {error}
+        </div>
+      )}
+
+      {/* Ongoing group call banner */}
+      {groupCall.active && callStatus === "idle" && (
+        <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 dark:border-emerald-800/60 dark:bg-emerald-950/40">
+          <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            <span className="font-semibold">
+              Ongoing call{groupCall.count > 0 ? ` · ${groupCall.count} in call` : ""}
+            </span>
+          </div>
+          <button
+            onClick={joinGroupCall}
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700"
+          >
+            <FiPhone className="h-3.5 w-3.5" />
+            Join
+          </button>
         </div>
       )}
 

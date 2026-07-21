@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { StoredMessage, StoredRoom } from '@/lib/db';
+import type { StoredMessage, StoredRoom, MessageReaction } from '@/lib/db';
 import { MessageStatus } from '@/constants';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -22,6 +22,14 @@ export interface ChatState {
 
   // Typing
   typingUsers: Record<string, Set<string>>; // channelId → Set<userId>
+
+  // Latest message WE sent per channel (sender doesn't get message:new echo,
+  // so the sidebar needs this to update its own-message previews)
+  sentPreviews: Record<string, { senderId: string; text: string; at: string }>;
+
+  // Emoji reactions keyed by messageId (hydrated from GET_MESSAGES,
+  // kept live via reaction:added / reaction:removed socket events)
+  reactionsByMessage: Record<string, MessageReaction[]>;
 }
 
 export interface ChatActions {
@@ -51,6 +59,17 @@ export interface ChatActions {
   setTyping: (channelId: string, userId: string) => void;
   removeTyping: (channelId: string, userId: string) => void;
 
+  // Sent previews
+  setSentPreview: (
+    channelId: string,
+    preview: { senderId: string; text: string; at: string },
+  ) => void;
+
+  // Reactions
+  setReactionsBulk: (byMessage: Record<string, MessageReaction[]>) => void;
+  addReaction: (messageId: string, reaction: MessageReaction) => void;
+  removeReaction: (messageId: string, userId: string, emoji: string) => void;
+
   // Reset
   reset: () => void;
 }
@@ -65,6 +84,8 @@ const initialState: ChatState = {
   unreadCounts: {},
   totalUnread: 0,
   typingUsers: {},
+  sentPreviews: {},
+  reactionsByMessage: {},
 };
 
 // ─── Store ──────────────────────────────────────────────────────────────────
@@ -243,6 +264,70 @@ export const useChatStore = create<ChatState & ChatActions>()(
           },
           false,
           'removeTyping',
+        ),
+
+      // ─── Sent previews ─────────────────────────────────────────────
+
+      setSentPreview: (channelId, preview) =>
+        set(
+          (state) => ({
+            sentPreviews: { ...state.sentPreviews, [channelId]: preview },
+          }),
+          false,
+          'setSentPreview',
+        ),
+
+      // ─── Reactions ────────────────────────────────────────────────
+
+      setReactionsBulk: (byMessage) =>
+        set(
+          (state) => ({
+            reactionsByMessage: { ...state.reactionsByMessage, ...byMessage },
+          }),
+          false,
+          'setReactionsBulk',
+        ),
+
+      addReaction: (messageId, reaction) =>
+        set(
+          (state) => {
+            const current = state.reactionsByMessage[messageId] || [];
+            // Dedupe: same user + emoji already present
+            if (
+              current.some(
+                (r) => r.userId === reaction.userId && r.emoji === reaction.emoji,
+              )
+            ) {
+              return state;
+            }
+            return {
+              reactionsByMessage: {
+                ...state.reactionsByMessage,
+                [messageId]: [...current, reaction],
+              },
+            };
+          },
+          false,
+          'addReaction',
+        ),
+
+      removeReaction: (messageId, userId, emoji) =>
+        set(
+          (state) => {
+            const current = state.reactionsByMessage[messageId];
+            if (!current) return state;
+            const next = current.filter(
+              (r) => !(r.userId === userId && r.emoji === emoji),
+            );
+            return {
+              reactionsByMessage: {
+                ...state.reactionsByMessage,
+                [messageId]: next,
+              },
+            };
+          },
+          false,
+          'removeReaction',
         ),
 
       // ─── Reset ─────────────────────────────────────────────────────

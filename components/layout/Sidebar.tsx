@@ -70,6 +70,10 @@ export default function Sidebar() {
       await api.post("/api/auth/logout");
     } catch {}
     disconnectSocket();
+    try {
+      const { clearIdentity } = await import("@/lib/e2ee");
+      await clearIdentity();
+    } catch {}
     await clearAllData();
     logout();
     router.push("/auth/login");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FiPhone, FiPhoneOff } from "react-icons/fi";
 import { useCallStore } from "@/context/stores/call-store";
@@ -8,28 +8,7 @@ import { getSocket } from "@/lib/socket";
 import { SOCKET_EVENTS } from "@/constants";
 
 export default function IncomingCallToast() {
-  const { incomingCall, callStatus, ringtoneEnabled } = useCallStore();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Play ringtone
-  useEffect(() => {
-    if (incomingCall && callStatus === "idle" && ringtoneEnabled) {
-      try {
-        audioRef.current = new Audio("/sounds/ringtone.mp3");
-        audioRef.current.loop = true;
-        audioRef.current.volume = 0.5;
-        audioRef.current.play().catch(() => {});
-      } catch {}
-    }
-
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-        audioRef.current = null;
-      }
-    };
-  }, [incomingCall?.callId, callStatus, ringtoneEnabled]);
+  const { incomingCall, callStatus } = useCallStore();
 
   // Auto-dismiss after 30s
   useEffect(() => {

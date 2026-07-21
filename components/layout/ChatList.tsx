@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FiUsers, FiSearch, FiMessageSquare } from "react-icons/fi";
 import { api } from "@/utils/api";
 import { useAuthStore } from "@/context/stores";
 import { useChatStore } from "@/context/stores/chat-store";
-import { getChatKey, decrypt } from "@/lib/crypto";
+import { useSocketStore } from "@/context/stores/socket-store";
+import { decryptMessage } from "@/lib/e2ee";
 import { getSocket } from "@/lib/socket";
 import { SOCKET_EVENTS } from "@/constants";
 
@@ -55,6 +56,7 @@ interface InboxRow {
   lastMessageSenderName: string | null;
   lastMessageIv: string | null;
   lastMessageTag: string | null;
+  lastMessageMetadata: Record<string, unknown> | null;
   lastMessageSenderKeyEpoch: number | null;
   createdAt: string;
   dmPeerId: string | null;
@@ -67,6 +69,9 @@ export default function ChatList() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const unreadCounts = useChatStore((s) => s.unreadCounts);
+  const sentPreviews = useChatStore((s) => s.sentPreviews);
+  const isConnected = useSocketStore((s) => s.isConnected);
+  const onlineUsers = useSocketStore((s) => s.onlineUsers);
 
   const [rooms, setRooms] = useState<InboxRow[]>([]);
   const [search, setSearch] = useState("");
@@ -74,7 +79,6 @@ export default function ChatList() {
   const [loaded, setLoaded] = useState(false);
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
   // ─── Decrypt a single preview ────────────────────────────────────────
   const decryptPreview = useCallback(
@@ -83,22 +87,27 @@ export default function ChatList() {
         if (r.lastMessageAt) return "";
         return r.type === "GROUP" ? "No messages yet" : "New conversation";
       }
-      // No IV/tag means plaintext (no real encryption)
+      // No IV/tag means legacy plaintext
       if (!r.lastMessageIv || !r.lastMessageTag) {
         return r.lastMessageContent;
       }
-      const chatKey = getChatKey(r.id);
-      if (chatKey) {
-        try {
-          return await decrypt(r.lastMessageContent, r.lastMessageIv, r.lastMessageTag, chatKey);
-        } catch {}
-      }
-      return r.lastMessageContent;
+      try {
+        const plaintext = await decryptMessage({
+          channelId: r.id,
+          senderId: r.lastMessageSenderId || "",
+          encryptedContent: r.lastMessageContent,
+          contentIv: r.lastMessageIv,
+          contentTag: r.lastMessageTag,
+          metadata: r.lastMessageMetadata,
+        });
+        if (plaintext !== null) return plaintext;
+      } catch {}
+      return "[Encrypted message]";
     },
     [],
   );
 
-  // ─── Fetch channels on mount ──────────────────────────────────────────
+  // ─── Fetch channels (initial load) ────────────────────────────────────
   useEffect(() => {
     if (!isAuthenticated || loaded) return;
     api
@@ -146,9 +155,33 @@ export default function ChatList() {
       .catch(() => setLoaded(true));
   }, [isAuthenticated, loaded, user?.id, decryptPreview]);
 
+  // ─── Resync on reconnect: catch up rooms created/changed while offline ─
+  const everConnected = useRef(false);
+  const prevConnected = useRef(false);
+  useEffect(() => {
+    if (!isConnected) {
+      prevConnected.current = false;
+      return;
+    }
+    const isReconnect = everConnected.current && !prevConnected.current;
+    everConnected.current = true;
+    prevConnected.current = true;
+
+    if (isReconnect && isAuthenticated) {
+      api.get<InboxRow[]>("/channels").then(async (data) => {
+        const newPreviewMap: Record<string, string> = {};
+        for (const r of data) {
+          newPreviewMap[r.id] = await decryptPreview(r);
+        }
+        setPreviewMap(newPreviewMap);
+        setRooms(data);
+      }).catch(() => {});
+    }
+  }, [isConnected, isAuthenticated, decryptPreview]);
+
   // ─── Real-time updates via socket ─────────────────────────────────────
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !isConnected) return;
     const socket = getSocket();
     if (!socket) return;
 
@@ -156,24 +189,34 @@ export default function ChatList() {
       const channelId = msg.channelId;
       if (!channelId) return;
 
-      // Preview is the raw content (plaintext since no real encryption)
       let preview = msg.encryptedContent || "";
       if (msg.contentIv && msg.contentTag) {
-        const chatKey = getChatKey(channelId);
-        if (chatKey) {
-          try {
-            preview = await decrypt(msg.encryptedContent, msg.contentIv, msg.contentTag, chatKey);
-          } catch {}
-        }
+        try {
+          const plaintext = await decryptMessage({
+            channelId,
+            senderId: msg.senderId || "",
+            encryptedContent: msg.encryptedContent,
+            contentIv: msg.contentIv,
+            contentTag: msg.contentTag,
+            metadata: msg.metadata,
+          });
+          if (plaintext !== null) preview = plaintext;
+          else preview = "[Encrypted message]";
+        } catch {}
       }
 
       setPreviewMap((prevMap) => ({ ...prevMap, [channelId]: preview }));
 
-      // Move room to top
+      // Move room to top — and refresh the sender, otherwise the "You: "
+      // prefix uses a stale sender id from the previous message
       setRooms((prev) => {
         const idx = prev.findIndex((r) => r.id === channelId);
         if (idx === -1) return prev;
-        const room = { ...prev[idx], lastMessageAt: msg.createdAt || new Date().toISOString() };
+        const room = {
+          ...prev[idx],
+          lastMessageAt: msg.createdAt || new Date().toISOString(),
+          lastMessageSenderId: msg.senderId || prev[idx].lastMessageSenderId,
+        };
         const others = prev.filter((r) => r.id !== channelId);
         return [room, ...others];
       });
@@ -183,40 +226,37 @@ export default function ChatList() {
     return () => {
       socket.off(SOCKET_EVENTS.MESSAGE_NEW, handleMessageNew);
     };
-  }, [loaded]);
+  }, [loaded, isConnected]);
 
-  // ─── Unified presence: bulk + real-time via socket ─────────────────────
+  // ─── Apply our own just-sent messages (no message:new echo for sender) ─
   useEffect(() => {
-    if (!loaded) return;
-    const socket = getSocket();
-    if (!socket) return;
+    const ids = Object.keys(sentPreviews);
+    if (ids.length === 0) return;
 
-    const handlePresenceBulk = (data: { online: string[] }) => {
-      setOnlineUsers(new Set(data.online));
-    };
-
-    const handleUserJoined = (data: { userId: string }) => {
-      setOnlineUsers((prev) => new Set([...prev, data.userId]));
-    };
-
-    const handleUserLeft = (data: { userId: string }) => {
-      setOnlineUsers((prev) => {
-        const next = new Set(prev);
-        next.delete(data.userId);
-        return next;
+    setRooms((prev) => {
+      let changed = false;
+      const next = prev.map((r) => {
+        const sp = sentPreviews[r.id];
+        if (!sp) return r;
+        const roomAt = r.lastMessageAt ? new Date(r.lastMessageAt).getTime() : 0;
+        const spAt = new Date(sp.at).getTime();
+        // Only apply when our sent message isn't older than the room's latest
+        // (a friend's newer message must keep winning)
+        if (spAt < roomAt) return r;
+        if (r.lastMessageSenderId === sp.senderId && r.lastMessageAt === sp.at) return r;
+        changed = true;
+        return { ...r, lastMessageAt: sp.at, lastMessageSenderId: sp.senderId };
       });
-    };
+      if (!changed) return prev;
+      return next.sort(
+        (a, b) =>
+          new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime(),
+      );
+    });
+  }, [sentPreviews, rooms]);
 
-    socket.on("presence:bulk", handlePresenceBulk);
-    socket.on(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
-    socket.on(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
-
-    return () => {
-      socket.off("presence:bulk", handlePresenceBulk);
-      socket.off(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
-      socket.off(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
-    };
-  }, [loaded]);
+  // ─── Presence comes from the shared socket store (handled in          ─
+  // ─── socket-handlers.ts: presence:bulk / user:joined / user:left)    ─
 
   // ─── Derived ──────────────────────────────────────────────────────────
   const displayName = (room: InboxRow): string => {
@@ -230,6 +270,17 @@ export default function ChatList() {
   };
 
   const previewText = (room: InboxRow): string => {
+    // Our own latest sent message (kept in sync by the sentPreviews effect)
+    const sp = sentPreviews[room.id];
+    if (
+      sp &&
+      room.lastMessageSenderId === sp.senderId &&
+      room.lastMessageAt === sp.at
+    ) {
+      const prefix = room.type === "DIRECT" ? "You: " : "";
+      return prefix + sp.text;
+    }
+
     const decrypted = previewMap[room.id];
     if (decrypted !== undefined) {
       const prefix = room.type === "DIRECT" && room.lastMessageSenderId === user?.id ? "You: " : "";
@@ -348,7 +399,7 @@ export default function ChatList() {
           const colorClass = isGroup ? "" : hashColor(name);
           const unread = unreadCounts[room.id] || 0;
           const preview = previewText(room);
-          const isOnline = !isGroup && onlineUsers.has(getDmOtherUserId(room) || "");
+          const isOnline = !isGroup && !!onlineUsers[getDmOtherUserId(room) || ""];
 
           return (
             <Link

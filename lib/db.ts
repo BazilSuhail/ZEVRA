@@ -25,6 +25,13 @@ export interface StoredMessage {
   updatedAt: string;
 }
 
+// A single emoji reaction on a message (server-broadcast / history payload)
+export interface MessageReaction {
+  emoji: string;
+  userId: string;
+  username: string | null;
+}
+
 export interface StoredRoom {
   id: string;
   name: string | null;
@@ -53,6 +60,15 @@ export interface PendingOp {
   createdAt: string;
 }
 
+export interface StoredIdentity {
+  id: 'me';
+  userId: string;
+  publicKey: string;
+  publicKeySign: string;
+  privateKey: string; // base64 raw 32B
+  privateKeySign: string; // base64 raw 32B
+}
+
 export interface StoredCall {
   id: string;
   type: 'WEBRTC' | 'LIVEKIT';
@@ -73,6 +89,7 @@ class ChatDatabase extends Dexie {
   keys!: EntityTable<StoredKey, 'channelId'>;
   pendingOps!: EntityTable<PendingOp, 'id'>;
   calls!: EntityTable<StoredCall, 'id'>;
+  identity!: EntityTable<StoredIdentity, 'id'>;
 
   constructor() {
     super('zevra-chat');
@@ -86,6 +103,10 @@ class ChatDatabase extends Dexie {
 
     this.version(2).stores({
       calls: 'id, peerId, startedAt, status',
+    });
+
+    this.version(3).stores({
+      identity: 'id, userId',
     });
   }
 }

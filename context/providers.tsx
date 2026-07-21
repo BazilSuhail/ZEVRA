@@ -5,7 +5,8 @@ import { connectSocket, disconnectSocket, type AppSocket } from '@/lib/socket';
 import { bindSocketHandlers, unbindSocketHandlers } from '@/lib/socket-handlers';
 import { useAuthStore } from '@/context/stores/auth-store';
 import { useSocketStore } from '@/context/stores/socket-store';
-import { setTokens, loadRefreshToken, api } from '@/utils/api';
+import { setTokens, loadRefreshToken, api, getAccessToken } from '@/utils/api';
+import { initCallRingtone } from '@/utils/ringtone';
 import OutgoingCallModal from '@/components/calls/OutgoingCallModal';
 import IncomingCallModal from '@/components/calls/IncomingCallModal';
 import ActiveCallOverlay from '@/components/calls/ActiveCallOverlay';
@@ -14,15 +15,23 @@ import CallEndedOverlay from '@/components/calls/CallEndedOverlay';
 // ─── Socket Manager ─────────────────────────────────────────────────────────
 
 let socketInstance: AppSocket | null = null;
+let socketToken: string | null = null;
 
 function initSocket(token: string): AppSocket {
-  if (socketInstance?.connected) return socketInstance;
-
-  if (socketInstance) {
-    unbindSocketHandlers(socketInstance);
-    socketInstance.disconnect();
+  // Same token: keep the socket if it's connected or still auto-reconnecting.
+  // A dead socket (server rejected it / retries exhausted) gets replaced.
+  if (socketInstance && socketToken === token) {
+    if (socketInstance.connected || socketInstance.active) return socketInstance;
   }
 
+  // New token (fresh login) or first init: replace the socket
+  if (socketInstance) {
+    unbindSocketHandlers(socketInstance);
+    disconnectSocket();
+    socketInstance = null;
+  }
+
+  socketToken = token;
   socketInstance = connectSocket(token);
   bindSocketHandlers(socketInstance);
 
@@ -34,6 +43,7 @@ function destroySocket() {
     unbindSocketHandlers(socketInstance);
     disconnectSocket();
     socketInstance = null;
+    socketToken = null;
   }
 }
 
@@ -73,14 +83,17 @@ function useAuthInit() {
         .then((res) => {
           if (res?.user?.id) {
             setUser(res.user);
-            initSocket(token);
+            // The interceptor may have silently refreshed the token — sync it
+            const freshToken = getAccessToken() || token;
+            if (freshToken !== token) useAuthStore.getState().setAccessToken(freshToken);
+            initSocket(freshToken);
           } else {
             logout();
             window.location.href = '/auth/login';
           }
         })
         .catch(() => {
-          const freshToken = useAuthStore.getState().accessToken;
+          const freshToken = getAccessToken() || useAuthStore.getState().accessToken;
           if (freshToken) {
             initSocket(freshToken);
           }
@@ -96,28 +109,33 @@ function useAuthInit() {
   }, [hydrated, setLoading, logout, setUser, setTokenValidated]);
 }
 
-// ─── Socket Connection Watcher ──────────────────────────────────────────────
+// ─── Socket Lifecycle: connect whenever a token exists, destroy on logout ──
 
-function useSocketConnection() {
-  const setConnected = useSocketStore((s) => s.setConnected);
+function useSocketLifecycle() {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
-    const check = () => {
-      if (socketInstance?.connected) {
-        setConnected(true);
-      }
-    };
-
-    const interval = setInterval(check, 5000);
-    return () => clearInterval(interval);
-  }, [setConnected]);
+    if (accessToken && isAuthenticated) {
+      const sock = initSocket(accessToken);
+      if (!sock.connected) useSocketStore.getState().setStatus('connecting');
+    } else {
+      destroySocket();
+      useSocketStore.getState().reset();
+    }
+  }, [accessToken, isAuthenticated]);
 }
 
 // ─── Providers ──────────────────────────────────────────────────────────────
 
 export function Providers({ children }: { children: ReactNode }) {
   useAuthInit();
-  useSocketConnection();
+  useSocketLifecycle();
+
+  // Central ringtone: starts on incoming call, stops on decline/accept/end
+  useEffect(() => {
+    initCallRingtone();
+  }, []);
 
   return (
     <>

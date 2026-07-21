@@ -10,6 +10,7 @@ export interface SocketState {
   socketId: string | null;
   isConnected: boolean;
   reconnectAttempts: number;
+  onlineUsers: Record<string, boolean>;
 }
 
 export interface SocketActions {
@@ -17,6 +18,10 @@ export interface SocketActions {
   setSocketId: (socketId: string) => void;
   setConnected: (connected: boolean) => void;
   setReconnectAttempts: (attempts: number) => void;
+  setPresenceBulk: (online: string[]) => void;
+  setUsersOnline: (userIds: string[]) => void;
+  setUserOnline: (userId: string) => void;
+  setUserOffline: (userId: string) => void;
   reset: () => void;
 }
 
@@ -30,6 +35,7 @@ export const useSocketStore = create<SocketState & SocketActions>()(
       socketId: null,
       isConnected: false,
       reconnectAttempts: 0,
+      onlineUsers: {},
 
       // Actions
       setStatus: (status) => set({ status }, false, 'setStatus'),
@@ -49,6 +55,45 @@ export const useSocketStore = create<SocketState & SocketActions>()(
       setReconnectAttempts: (reconnectAttempts) =>
         set({ reconnectAttempts }, false, 'setReconnectAttempts'),
 
+      setPresenceBulk: (online) =>
+        set(
+          {
+            onlineUsers: Object.fromEntries(online.map((id) => [id, true])),
+          },
+          false,
+          'setPresenceBulk',
+        ),
+
+      setUsersOnline: (userIds) =>
+        set(
+          (state) => {
+            const next = { ...state.onlineUsers };
+            for (const id of userIds) next[id] = true;
+            return { onlineUsers: next };
+          },
+          false,
+          'setUsersOnline',
+        ),
+
+      setUserOnline: (userId) =>
+        set(
+          (state) => ({ onlineUsers: { ...state.onlineUsers, [userId]: true } }),
+          false,
+          'setUserOnline',
+        ),
+
+      setUserOffline: (userId) =>
+        set(
+          (state) => {
+            if (!state.onlineUsers[userId]) return state;
+            const next = { ...state.onlineUsers };
+            delete next[userId];
+            return { onlineUsers: next };
+          },
+          false,
+          'setUserOffline',
+        ),
+
       reset: () =>
         set(
           {
@@ -56,6 +101,7 @@ export const useSocketStore = create<SocketState & SocketActions>()(
             socketId: null,
             isConnected: false,
             reconnectAttempts: 0,
+            onlineUsers: {},
           },
           false,
           'reset',

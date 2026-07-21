@@ -136,7 +136,7 @@ export const useCallStore = create<CallState & CallActions>()(
         isScreenSharing: false,
         isChatOpen: false,
         isParticipantsOpen: false,
-        ringtoneEnabled: false,
+        ringtoneEnabled: true,
 
         // ─── Call Lifecycle ───────────────────────────────────────────
 
@@ -364,6 +364,13 @@ export const useCallStore = create<CallState & CallActions>()(
       }),
       {
         name: 'zevra-call',
+        version: 1,
+        // v0 had ringtoneEnabled default false — flip it on once so existing
+        // installs start ringing (users can still disable it in Settings)
+        migrate: (persisted) => ({
+          ...(persisted as Record<string, unknown>),
+          ringtoneEnabled: true,
+        }),
         partialize: (state) => ({
           ringtoneEnabled: state.ringtoneEnabled,
         }),

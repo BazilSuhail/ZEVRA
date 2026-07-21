@@ -29,6 +29,7 @@ export const SOCKET_EVENTS = {
   CALL_ICE_CANDIDATE: 'call:ice-candidate',
   CALL_LIVEKIT_FALLBACK: 'call:livekit-fallback',
   CALL_LIVEKIT_JOIN_GROUP: 'call:livekit-join-group',
+  CALL_LIVEKIT_ACTIVE: 'call:livekit-active',
 
   // Server → Client
   CONNECTED: 'connected',

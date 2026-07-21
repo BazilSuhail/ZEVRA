@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FiPhone, FiPhoneOff } from "react-icons/fi";
 import { useCallStore } from "@/context/stores/call-store";
@@ -9,8 +9,7 @@ import { SOCKET_EVENTS } from "@/constants";
 import { connectToRoom } from "@/lib/livekit";
 
 export default function IncomingCallModal() {
-  const { incomingCall, callStatus, ringtoneEnabled } = useCallStore();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { incomingCall, callStatus } = useCallStore();
   const [secondsLeft, setSecondsLeft] = useState(30);
 
   const isVisible = !!incomingCall && callStatus === "idle";
@@ -55,40 +54,23 @@ export default function IncomingCallModal() {
     }
   };
 
-  // Play ringtone
-  useEffect(() => {
-    if (isVisible && ringtoneEnabled) {
-      try {
-        audioRef.current = new Audio("/sounds/ringtone.mp3");
-        audioRef.current.loop = true;
-        audioRef.current.volume = 0.5;
-        audioRef.current.play().catch(() => {});
-      } catch {}
-    }
-
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-        audioRef.current = null;
-      }
-    };
-  }, [incomingCall?.callId, isVisible, ringtoneEnabled]);
-
   // Countdown auto-dismiss
   useEffect(() => {
     if (!isVisible) return;
     setSecondsLeft(30);
+    let remaining = 30;
 
     const timer = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(timer);
-          handleReject();
-          return 0;
-        }
-        return s - 1;
-      });
+      remaining -= 1;
+      setSecondsLeft(Math.max(0, remaining));
+      if (remaining <= 0) {
+        clearInterval(timer);
+        // Must run here (timer callback), NOT inside the setSecondsLeft
+        // updater — updaters execute during render, and rejectCall() would
+        // setState in other components mid-render ("Cannot update a
+        // component while rendering a different component").
+        handleReject();
+      }
     }, 1000);
 
     return () => clearInterval(timer);

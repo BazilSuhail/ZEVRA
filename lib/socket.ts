@@ -18,12 +18,12 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.USER_JOINED]: (data: {
     userId: string;
     username: string;
-    channelId: string;
+    channelId?: string;
   }) => void;
   [SOCKET_EVENTS.USER_LEFT]: (data: {
     userId: string;
     username: string;
-    channelId: string;
+    channelId?: string;
   }) => void;
   [SOCKET_EVENTS.MESSAGE_NEW]: (message: unknown) => void;
   [SOCKET_EVENTS.TYPING_START_RECV]: (data: {
@@ -121,11 +121,11 @@ export interface ClientToServerEvents {
     callback: (response: { success: boolean; message?: unknown; error?: string }) => void,
   ) => void;
   [SOCKET_EVENTS.GET_MESSAGES]: (
-    data: { channelId: string; limit?: number; cursor?: string },
+    data: { channelId: string; limit?: number; cursor?: number; mode?: 'latest' | 'before' | 'since' },
     callback: (response: {
       success: boolean;
       messages?: unknown[];
-      nextCursor?: string | null;
+      nextCursor?: number | null;
       hasMore?: boolean;
       error?: string;
     }) => void,
@@ -172,6 +172,7 @@ export interface ClientToServerEvents {
   [SOCKET_EVENTS.CALL_INITIATE]: (data: {
     targetUserIds: string[];
     type: 'DM' | 'GROUP';
+    channelId?: string;
   }) => void;
   [SOCKET_EVENTS.CALL_ACCEPT]: (data: { callId: string }) => void;
   [SOCKET_EVENTS.CALL_REJECT]: (data: { callId: string }) => void;
@@ -189,10 +190,40 @@ export interface ClientToServerEvents {
     candidate: RTCIceCandidateInit;
     targetUserId: string;
   }) => void;
-  [SOCKET_EVENTS.CALL_LIVEKIT_FALLBACK]: (data: { callId: string }) => void;
-  [SOCKET_EVENTS.CALL_LIVEKIT_JOIN_GROUP]: (data: { callId: string }) => void;
+  [SOCKET_EVENTS.CALL_LIVEKIT_FALLBACK]: (
+    data: { targetUserIds: string[]; channelId?: string },
+    callback: (response: {
+      success: boolean;
+      method?: string;
+      roomName?: string;
+      serverUrl?: string;
+      token?: string;
+      callLogId?: string;
+      error?: string;
+    }) => void,
+  ) => void;
+  [SOCKET_EVENTS.CALL_LIVEKIT_JOIN_GROUP]: (
+    data: { roomName: string },
+    callback: (response: {
+      success: boolean;
+      roomName?: string;
+      serverUrl?: string;
+      token?: string;
+      error?: string;
+    }) => void,
+  ) => void;
+  [SOCKET_EVENTS.CALL_LIVEKIT_ACTIVE]: (
+    data: { channelId: string },
+    callback: (response: {
+      success: boolean;
+      active?: boolean;
+      participantCount?: number;
+      roomName?: string;
+      error?: string;
+    }) => void,
+  ) => void;
   [SOCKET_EVENTS.PRESENCE_BULK]: (
-    data: Record<string, never>,
+    data: { userIds?: string[] },
     callback: (response: { online: string[] }) => void,
   ) => void;
 }

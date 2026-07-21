@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { motion } from "motion/react";
 import {
   FiArrowLeft,
   FiCheck,
@@ -17,8 +18,9 @@ import {
 } from "react-icons/fi";
 import { useAuthStore } from "@/context/stores";
 import { useChatStore } from "@/context/stores/chat-store";
+import { useSocketStore } from "@/context/stores/socket-store";
 import { getSocket } from "@/lib/socket";
-import { getChatKey, decrypt } from "@/lib/crypto";
+import { decryptMessage, encryptForChannel } from "@/lib/e2ee";
 import { SOCKET_EVENTS, MessageStatus } from "@/constants";
 import { api } from "@/utils/api";
 import {
@@ -26,6 +28,7 @@ import {
   saveMessages,
   saveMessage,
   type StoredMessage,
+  type MessageReaction,
 } from "@/lib/db";
 import CallButton from "@/components/calls/CallButton";
 
@@ -58,6 +61,9 @@ interface RawMessage {
   updatedAt?: string;
 }
 
+// Quick-pick reaction emojis (no external picker dependency)
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "😡", "🙏", "🔥"];
+
 // ─── Component ────────────────────────────────────────────────────────────
 
 export default function DMChatPage() {
@@ -66,6 +72,8 @@ export default function DMChatPage() {
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const typingUsers = useChatStore((s) => s.typingUsers);
+  const isConnected = useSocketStore((s) => s.isConnected);
+  const onlineUsers = useSocketStore((s) => s.onlineUsers);
 
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [messages, setMessages] = useState<StoredMessage[]>([]);
@@ -75,14 +83,14 @@ export default function DMChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  const [isOnline, setIsOnline] = useState(false);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<number | null>(null);
   const [idbReady, setIdbReady] = useState(false);
+  const [reactingTo, setReactingTo] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const initialLoadDone = useRef(false);
+  const initialLoadChannel = useRef<string | null>(null);
 
   const socket = getSocket();
   const channelTyping = typingUsers[channelId] || new Set();
@@ -91,6 +99,8 @@ export default function DMChatPage() {
   // ─── Track active room for unread counting ───────────────────────────
   const setActiveRoom = useChatStore((s) => s.setActiveRoom);
   const resetUnread = useChatStore((s) => s.resetUnread);
+  const setSentPreview = useChatStore((s) => s.setSentPreview);
+  const reactionsByMessage = useChatStore((s) => s.reactionsByMessage);
   useEffect(() => {
     if (channelId) {
       setActiveRoom(channelId);
@@ -108,46 +118,186 @@ export default function DMChatPage() {
       .catch(() => setError("Failed to load channel"));
   }, [channelId, isAuthenticated]);
 
-  // ─── Presence: track if peer is online ───────────────────────────────
+  // ─── Presence: track if peer is online (shared socket store) ─────────
+  const otherMember = channel?.members?.find((m) => m.id !== me?.id);
+  const isOnline = !!onlineUsers[otherMember?.id || ""];
+
   useEffect(() => {
-    if (!socket || !channel) return;
-    const otherMember = channel.members?.find((m) => m.id !== me?.id);
-    if (!otherMember) return;
+    if (!isConnected || !otherMember?.id) return;
+    // Explicit request covers peers unknown at connect-time (new DMs)
+    getSocket()?.emit(
+      SOCKET_EVENTS.PRESENCE_BULK,
+      { userIds: [otherMember.id] },
+      (res: { online: string[] }) => {
+        if (res?.online) useSocketStore.getState().setUsersOnline(res.online);
+      },
+    );
+  }, [isConnected, otherMember?.id]);
 
-    const handlePresenceBulk = (data: { online: string[] }) => {
-      setIsOnline(data.online.includes(otherMember.id));
-    };
+  // ─── Reactions: group + toggle ────────────────────────────────────
 
-    const handleUserJoined = (data: { userId: string }) => {
-      if (data.userId === otherMember.id) setIsOnline(true);
-    };
+  const groupReactions = (list: MessageReaction[] | undefined) => {
+    if (!list || list.length === 0) return [];
+    const map = new Map<
+      string,
+      { emoji: string; count: number; users: string[]; mine: boolean }
+    >();
+    for (const r of list) {
+      const g = map.get(r.emoji) || { emoji: r.emoji, count: 0, users: [], mine: false };
+      g.count += 1;
+      g.users.push(r.username || "Someone");
+      if (me && r.userId === me.id) g.mine = true;
+      map.set(r.emoji, g);
+    }
+    return Array.from(map.values());
+  };
 
-    const handleUserLeft = (data: { userId: string }) => {
-      if (data.userId === otherMember.id) setIsOnline(false);
-    };
+  // ─── Reactions: debounced, coalesced sends (latest-wins) ────────────
+  // Rapid toggling must not race the server: at most ONE emit per message
+  // is in flight, and intermediate clicks collapse into the final intent.
 
-    socket.on("presence:bulk", handlePresenceBulk);
-    socket.on(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
-    socket.on(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
+  const reactionTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const reactionInFlightRef = useRef(new Set<string>());
+  const reactionQueuedRef = useRef(
+    new Map<string, { emoji: string; remove: boolean }>(),
+  );
 
-    // Request initial presence
-    socket.emit("presence:bulk", {}, (res) => {
-      if (res?.online) {
-        setIsOnline(res.online.includes(otherMember.id));
+  // Self-heal after persistent failure: adopt server truth silently
+  // (no error banner — the UI just settles to the authoritative state)
+  const syncReactionsFromServer = useCallback(
+    async (messageId: string) => {
+      try {
+        const grouped = await api.get<Array<{ emoji: string; userIds: string[] }>>(
+          "/reactions",
+          { messageId, channelId },
+        );
+        const known =
+          useChatStore.getState().reactionsByMessage[messageId] || [];
+        const list: MessageReaction[] = [];
+        for (const g of grouped || []) {
+          for (const uid of g.userIds) {
+            list.push({
+              emoji: g.emoji,
+              userId: uid,
+              username: known.find((r) => r.userId === uid)?.username ?? null,
+            });
+          }
+        }
+        useChatStore.getState().setReactionsBulk({ [messageId]: list });
+      } catch {
+        // Offline — keep optimistic state; the next history sync fixes it
       }
-    });
+    },
+    [channelId],
+  );
 
+  const flushReactions = useCallback(
+    (messageId: string) => {
+      if (!socket || reactionInFlightRef.current.has(messageId)) return;
+      const op = reactionQueuedRef.current.get(messageId);
+      if (!op) return;
+
+      reactionQueuedRef.current.delete(messageId);
+      const timer = reactionTimersRef.current.get(messageId);
+      if (timer) {
+        clearTimeout(timer);
+        reactionTimersRef.current.delete(messageId);
+      }
+      reactionInFlightRef.current.add(messageId);
+
+      const finish = () => {
+        reactionInFlightRef.current.delete(messageId);
+        // A newer click arrived mid-flight — send that one now
+        if (reactionQueuedRef.current.has(messageId)) flushReactions(messageId);
+      };
+
+      const attempt = (retriesLeft: number) => {
+        (socket as any)
+          .timeout(4000)
+          .emit(
+            op.remove ? SOCKET_EVENTS.REACTION_REMOVE : SOCKET_EVENTS.REACTION_ADD,
+            { channelId, messageId, emoji: op.emoji },
+            (err: Error | null, res: { success?: boolean }) => {
+              if (!err && res?.success) {
+                finish();
+                return;
+              }
+              if (retriesLeft > 0) {
+                setTimeout(() => attempt(retriesLeft - 1), 400);
+                return;
+              }
+              // Still failing — silently resync instead of showing an error
+              void syncReactionsFromServer(messageId);
+              finish();
+            },
+          );
+      };
+
+      attempt(1);
+    },
+    [socket, channelId, syncReactionsFromServer],
+  );
+
+  const scheduleReactionFlush = useCallback(
+    (messageId: string) => {
+      // In flight → finish() will pick up the queued intent
+      if (reactionInFlightRef.current.has(messageId)) return;
+      const existing = reactionTimersRef.current.get(messageId);
+      if (existing) clearTimeout(existing);
+      const t = setTimeout(() => {
+        reactionTimersRef.current.delete(messageId);
+        flushReactions(messageId);
+      }, 250);
+      reactionTimersRef.current.set(messageId, t);
+    },
+    [flushReactions],
+  );
+
+  // Clear pending debounce timers on unmount
+  useEffect(() => {
+    const timers = reactionTimersRef.current;
     return () => {
-      socket.off("presence:bulk", handlePresenceBulk);
-      socket.off(SOCKET_EVENTS.USER_JOINED, handleUserJoined);
-      socket.off(SOCKET_EVENTS.USER_LEFT, handleUserLeft);
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
     };
-  }, [socket, channel, me?.id]);
+  }, []);
+
+  const toggleReaction = useCallback(
+    (messageId: string, emoji: string) => {
+      if (!channelId || !me) return;
+      setReactingTo(null);
+
+      const state = useChatStore.getState();
+      const existing = state.reactionsByMessage[messageId] || [];
+      const mineBefore = existing.filter((r) => r.userId === me.id);
+      const hadMine = mineBefore.some((r) => r.emoji === emoji);
+
+      // Optimistic apply (instant UI) — one reaction per user: a new emoji
+      // displaces my previous one, clicking my own emoji removes it
+      if (hadMine) {
+        state.removeReaction(messageId, me.id, emoji);
+      } else {
+        for (const r of mineBefore) {
+          state.removeReaction(messageId, me.id, r.emoji);
+        }
+        state.addReaction(messageId, {
+          emoji,
+          userId: me.id,
+          username: me.username,
+        });
+      }
+
+      // Latest-wins: coalesce rapid clicks, emit debounced & serialized
+      reactionQueuedRef.current.set(messageId, { emoji, remove: hadMine });
+      scheduleReactionFlush(messageId);
+    },
+    [channelId, me, scheduleReactionFlush],
+  );
 
   // ─── Step 1: Load from IDB instantly ─────────────────────────────────
   useEffect(() => {
-    if (!channelId || initialLoadDone.current) return;
-    initialLoadDone.current = true;
+    if (!channelId || initialLoadChannel.current === channelId) return;
+    initialLoadChannel.current = channelId;
 
     (async () => {
       try {
@@ -166,7 +316,7 @@ export default function DMChatPage() {
 
   // ─── Step 2: Fetch from server & merge ──────────────────────────────
   const fetchAndMerge = useCallback(
-    (loadCursor?: string | null) => {
+    (loadCursor?: number | null) => {
       if (!socket || !channelId) return;
 
       if (!idbReady && !loadCursor) {
@@ -177,7 +327,12 @@ export default function DMChatPage() {
 
       socket.emit(
         SOCKET_EVENTS.GET_MESSAGES,
-        { channelId, limit: 50, cursor: loadCursor || undefined },
+        {
+          channelId,
+          limit: 50,
+          cursor: loadCursor ?? undefined,
+          mode: loadCursor != null ? "before" : "latest",
+        },
         async (res: any) => {
           if (!res.success) {
             setError(res.error || "Failed to load messages");
@@ -186,19 +341,22 @@ export default function DMChatPage() {
             return;
           }
 
-          const chatKey = getChatKey(channelId);
           const serverMessages: StoredMessage[] = [];
 
           for (const m of res.messages || []) {
-            let plaintext = "";
-            if (m.contentIv && m.contentTag && chatKey) {
-              try {
-                plaintext = await decrypt(m.encryptedContent, m.contentIv, m.contentTag, chatKey);
-              } catch {
-                plaintext = "[Encrypted message]";
-              }
-            } else {
-              plaintext = m.encryptedContent || "";
+            let plaintext: string;
+            try {
+              const decrypted = await decryptMessage({
+                channelId,
+                senderId: m.senderId,
+                encryptedContent: m.encryptedContent,
+                contentIv: m.contentIv,
+                contentTag: m.contentTag,
+                metadata: m.metadata,
+              });
+              plaintext = decrypted ?? "[Encrypted message]";
+            } catch {
+              plaintext = "[Encrypted message]";
             }
 
             serverMessages.push({
@@ -219,6 +377,18 @@ export default function DMChatPage() {
               createdAt: m.createdAt || new Date().toISOString(),
               updatedAt: m.updatedAt || new Date().toISOString(),
             });
+          }
+
+          // Hydrate reactions for this page — server includes them in
+          // GET_MESSAGES; overwrite (even with []) so stale entries from a
+          // previous session can't linger on re-synced messages
+          const reactionsMap: Record<string, MessageReaction[]> = {};
+          for (const m of res.messages || []) {
+            if (!m.id) continue;
+            reactionsMap[m.id] = Array.isArray(m.reactions) ? m.reactions : [];
+          }
+          if (Object.keys(reactionsMap).length > 0) {
+            useChatStore.getState().setReactionsBulk(reactionsMap);
           }
 
           if (loadCursor) {
@@ -268,16 +438,17 @@ export default function DMChatPage() {
   );
 
   useEffect(() => {
-    if (!channelId || !isAuthenticated) return;
+    if (!channelId || !isAuthenticated || !isConnected) return;
     const timer = setTimeout(() => fetchAndMerge(), idbReady ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [channelId, isAuthenticated, fetchAndMerge, idbReady]);
+  }, [channelId, isAuthenticated, fetchAndMerge, idbReady, isConnected]);
 
-  // ─── Join channel ────────────────────────────────────────────────────
+  // ─── Join channel (also re-joins after reconnect — server re-emits     ─
+  // ─── user:joined to the room, harmless if already joined)             ─
   useEffect(() => {
-    if (!socket || !channelId || !isAuthenticated) return;
+    if (!socket || !channelId || !isAuthenticated || !isConnected) return;
     socket.emit(SOCKET_EVENTS.JOIN_CHANNEL, { channelId }, () => {});
-  }, [socket, channelId, isAuthenticated]);
+  }, [socket, channelId, isAuthenticated, isConnected]);
 
   // ─── Listen for new messages ─────────────────────────────────────────
   useEffect(() => {
@@ -287,43 +458,44 @@ export default function DMChatPage() {
       if (msg.channelId !== channelId) return;
       const msgId = msg.id || msg.messageId || `temp-${Date.now()}`;
 
+      let plaintext: string;
+      try {
+        const decrypted = await decryptMessage({
+          channelId,
+          senderId: msg.senderId,
+          encryptedContent: msg.encryptedContent,
+          contentIv: msg.contentIv,
+          contentTag: msg.contentTag,
+          metadata: msg.metadata,
+        });
+        plaintext = decrypted ?? "[Encrypted message]";
+      } catch {
+        plaintext = "[Encrypted message]";
+      }
+
+      const stored: StoredMessage = {
+        id: msgId,
+        channelId: msg.channelId,
+        senderId: msg.senderId,
+        ciphertext: msg.encryptedContent,
+        iv: msg.contentIv,
+        tag: msg.contentTag,
+        signature: msg.signature || "",
+        sequenceNumber: msg.sequenceNumber || 0,
+        senderKeyEpoch: msg.senderKeyEpoch || 0,
+        messageType: msg.messageType || "TEXT",
+        metadata: msg.metadata || null,
+        isDeleted: msg.isDeleted || false,
+        plaintext,
+        status: MessageStatus.DELIVERED,
+        createdAt: msg.createdAt || new Date().toISOString(),
+        updatedAt: msg.updatedAt || new Date().toISOString(),
+      };
+
+      saveMessage(stored).catch(() => {});
+
       setMessages((prev) => {
         if (prev.some((m) => m.id === msgId)) return prev;
-
-        const chatKey = getChatKey(channelId);
-        let plaintext = msg.encryptedContent || "";
-
-        if (chatKey && msg.contentIv && msg.contentTag) {
-          decrypt(msg.encryptedContent, msg.contentIv, msg.contentTag, chatKey)
-            .then((pt) => {
-              setMessages((p) =>
-                p.map((m) => (m.id === msgId ? { ...m, plaintext: pt } : m)),
-              );
-            })
-            .catch(() => {});
-        }
-
-        const stored: StoredMessage = {
-          id: msgId,
-          channelId: msg.channelId,
-          senderId: msg.senderId,
-          ciphertext: msg.encryptedContent,
-          iv: msg.contentIv,
-          tag: msg.contentTag,
-          signature: msg.signature || "",
-          sequenceNumber: msg.sequenceNumber || 0,
-          senderKeyEpoch: msg.senderKeyEpoch || 0,
-          messageType: msg.messageType || "TEXT",
-          metadata: msg.metadata || null,
-          isDeleted: msg.isDeleted || false,
-          plaintext: plaintext || "",
-          status: MessageStatus.DELIVERED,
-          createdAt: msg.createdAt || new Date().toISOString(),
-          updatedAt: msg.updatedAt || new Date().toISOString(),
-        };
-
-        saveMessage(stored).catch(() => {});
-
         return [...prev, stored];
       });
 
@@ -379,23 +551,40 @@ export default function DMChatPage() {
   const handleSend = async () => {
     if (!draft.trim() || !socket || !channelId || sending) return;
 
+    const memberIds = channel?.members?.map((m) => m.id);
+    if (!memberIds || memberIds.length === 0) {
+      setError("Channel members not loaded yet — try again in a moment");
+      return;
+    }
+
     const text = draft.trim();
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setDraft("");
     setSending(true);
 
+    // Encrypt + sign for every member before sending
+    let payload: Awaited<ReturnType<typeof encryptForChannel>>;
+    try {
+      payload = await encryptForChannel({ channelId, memberIds, text });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to encrypt message");
+      setDraft(text);
+      setSending(false);
+      return;
+    }
+
     const optimistic: StoredMessage = {
       id: tempId,
       channelId,
       senderId: me?.id || "",
-      ciphertext: text,
-      iv: "",
-      tag: "",
-      signature: "",
-      sequenceNumber: Date.now(),
+      ciphertext: payload.encryptedContent,
+      iv: payload.contentIv,
+      tag: payload.contentTag,
+      signature: payload.signature,
+      sequenceNumber: 0,
       senderKeyEpoch: 0,
       messageType: "TEXT",
-      metadata: null,
+      metadata: payload.metadata,
       isDeleted: false,
       plaintext: text,
       status: MessageStatus.SENT,
@@ -413,13 +602,14 @@ export default function DMChatPage() {
       SOCKET_EVENTS.SEND_MESSAGE,
       {
         channelId,
-        encryptedContent: text,
-        contentIv: "",
-        contentTag: "",
-        signature: "",
-        sequenceNumber: Date.now(),
+        encryptedContent: payload.encryptedContent,
+        contentIv: payload.contentIv,
+        contentTag: payload.contentTag,
+        signature: payload.signature,
+        sequenceNumber: 0,
         senderKeyEpoch: 0,
         messageType: "TEXT",
+        metadata: payload.metadata,
       },
       (res: any) => {
         setSending(false);
@@ -428,12 +618,19 @@ export default function DMChatPage() {
           setDraft(text);
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
         } else if (res.message?.id) {
+          // Sender gets no message:new echo — push our own preview to the sidebar
+          setSentPreview(channelId, {
+            senderId: me?.id || "",
+            text,
+            at: res.message.createdAt || new Date().toISOString(),
+          });
           setMessages((prev) =>
             prev.map((m) =>
               m.id === tempId
                 ? {
                     ...m,
                     id: res.message.id,
+                    sequenceNumber: res.message.sequenceNumber ?? m.sequenceNumber,
                     status: MessageStatus.DELIVERED,
                     createdAt: res.message.createdAt || m.createdAt,
                   }
@@ -466,7 +663,6 @@ export default function DMChatPage() {
   };
 
   // ─── Derived ─────────────────────────────────────────────────────────
-  const otherMember = channel?.members?.find((m) => m.id !== me?.id);
   const displayName = channel?.name || otherMember?.username || "Unknown";
   const initials = displayName
     .split(" ")
@@ -535,6 +731,7 @@ export default function DMChatPage() {
             <CallButton
               targetUserIds={[otherMember.id]}
               type="DM"
+              channelId={channelId}
               peerUsername={otherMember.username}
             />
           )}
@@ -607,12 +804,13 @@ export default function DMChatPage() {
           {/* Message list */}
           {messages.map((msg) => {
             const isMine = msg.senderId === me?.id;
+            const reactionGroups = groupReactions(reactionsByMessage[msg.id]);
             return (
               <div
                 key={msg.id}
                 className={`mb-5   flex ${isMine ? "justify-end" : "justify-start"}`}
               >
-                <div className="max-w-[80%] lg:max-w-120">
+                <div className="group relative max-w-[80%] lg:max-w-120">
                   <div
                     className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
                       isMine
@@ -631,6 +829,80 @@ export default function DMChatPage() {
                       </span>
                     )}
                   </div>
+
+                  {/* Hover quick-react — placed on the inner side of the
+                      bubble so it can never overflow the viewport */}
+                  {!msg.isDeleted && (
+                    <button
+                      type="button"
+                      aria-label="Add reaction"
+                      onClick={() =>
+                        setReactingTo(reactingTo === msg.id ? null : msg.id)
+                      }
+                      className={`absolute top-1/2 z-30 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full border border-zinc-200 bg-white text-zinc-400 opacity-0 shadow-sm transition-all duration-150 hover:scale-110 hover:text-indigo-600 focus-visible:scale-110 focus-visible:opacity-100 group-hover:opacity-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500 dark:hover:text-indigo-400 ${
+                        isMine ? "right-full mr-1" : "left-full ml-1"
+                      }`}
+                    >
+                      <FiSmile className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+
+                  {/* Emoji picker popover */}
+                  {reactingTo === msg.id && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-20"
+                        onClick={() => setReactingTo(null)}
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: 6, scale: 0.92 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ type: "spring", damping: 24, stiffness: 420 }}
+                        className={`absolute  bottom-full z-40 mb-2 grid grid-cols-9 gap-x-7.5 gap-y-1.5 rounded-2xl border border-zinc-200 bg-white p-2 shadow-xl sm:grid-cols-9 dark:border-zinc-700 dark:bg-zinc-900 ${
+                          isMine ? "right-0" : "left-0"
+                        }`}
+                      >
+                        {QUICK_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            aria-label={`React with ${emoji}`}
+                            onClick={() => toggleReaction(msg.id, emoji)}
+                            className="grid h-9 w-9 place-items-center rounded-xl text-lg leading-none transition-transform hover:scale-110 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </motion.div>
+                    </>
+                  )}
+
+                  {/* Reaction chips */}
+                  {reactionGroups.length > 0 && (
+                    <div
+                      className={`relative z-30 mt-1.5 flex flex-wrap gap-1 ${
+                        isMine ? "justify-end" : ""
+                      }`}
+                    >
+                      {reactionGroups.map((g) => (
+                        <button
+                          key={g.emoji}
+                          type="button"
+                          title={g.users.join(", ")}
+                          onClick={() => toggleReaction(msg.id, g.emoji)}
+                          className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium transition-all hover:scale-105 ${
+                            g.mine
+                              ? "border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/15 dark:text-indigo-300"
+                              : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-600"
+                          }`}
+                        >
+                          <span className="text-sm leading-none">{g.emoji}</span>
+                          {g.count > 1 && <span>{g.count}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <p
                     className={`mt-1 flex items-center gap-1 px-2 text-[10px] text-zinc-400 ${
                       isMine ? "justify-end" : ""
