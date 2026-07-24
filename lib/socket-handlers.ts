@@ -1,16 +1,15 @@
 import type { AppSocket } from './socket';
-import { SOCKET_EVENTS, APP, MessageStatus } from '@/constants';
+import { SOCKET_EVENTS, APP } from '@/constants';
 import { useChatStore } from '@/context/stores/chat-store';
 import { useSocketStore } from '@/context/stores/socket-store';
-import { decryptMessage } from './e2ee';
-import { getAccessToken } from '@/utils/api';
-import {
-  saveMessage,
-  incrementRoomUnread,
-  type StoredMessage,
-} from './db';
+import { useAuthStore } from '@/context/stores/auth-store';
+import { getAccessToken, getRefreshToken, refreshAccessToken } from '@/utils/api';
+import { saveMessage, markMessageDeleted } from './db';
+import { decodeServerMessage, rawMessageId, type RawServerMessage } from './message-decode';
 import { setupWebRTCSocketHandlers } from './webrtc';
 import { setupLiveKitSocketHandlers } from './livekit-handlers';
+
+const AUTH_ERROR_CODES = new Set(['TOKEN_EXPIRED', 'INVALID_TOKEN', 'NOT_AUTHENTICATED', 'NO_TOKEN']);
 
 // ─── Bind Socket Events → Zustand Store ─────────────────────────────────────
 
@@ -80,59 +79,44 @@ export function bindSocketHandlers(socket: AppSocket) {
     );
   });
 
-  socket.on(SOCKET_EVENTS.FORCED_DISCONNECT, (data) => {
-    console.warn('[Socket] Forced disconnect:', data.reason);
-    socketStore().setConnected(false);
-    socketStore().setStatus('disconnected');
-  });
+  // Server rejects expired/invalid tokens with an 'error' event and then
+  // disconnects (no auto-reconnect). Refresh once; the new access token in
+  // the auth store makes the provider open a fresh socket with it.
+  (socket as unknown as { on: (ev: string, cb: (e: { code?: string }) => void) => void }).on(
+    'error',
+    (err) => {
+      if (!err?.code || !AUTH_ERROR_CODES.has(err.code) || !getRefreshToken()) return;
+      refreshAccessToken().catch(() => {
+        socketStore().setConnectionError('Session expired — reconnecting failed');
+      });
+    },
+  );
 
   // ─── Message Events ──────────────────────────────────────────────
 
   socket.on(SOCKET_EVENTS.MESSAGE_NEW, async (msg: any) => {
     try {
-      const msgId = msg.id || msg.messageId;
-      if (!msgId) return; // Skip if no valid ID
+      const raw = msg as RawServerMessage;
+      if (!rawMessageId(raw) || !raw.channelId) return;
 
-      const decrypted = await decryptMessage({
-        channelId: msg.channelId,
-        senderId: msg.senderId,
-        encryptedContent: msg.encryptedContent,
-        contentIv: msg.contentIv,
-        contentTag: msg.contentTag,
-        metadata: msg.metadata,
-      });
-      const plaintext = decrypted ?? '[Encrypted message]';
+      const myId = useAuthStore.getState().user?.id;
+      const isActive = raw.channelId === chatStore().activeRoomId;
 
-      const message: StoredMessage = {
-        id: msgId,
-        channelId: msg.channelId,
-        senderId: msg.senderId,
-        ciphertext: msg.encryptedContent,
-        iv: msg.contentIv,
-        tag: msg.contentTag,
-        signature: msg.signature || '',
-        sequenceNumber: msg.sequenceNumber,
-        senderKeyEpoch: msg.senderKeyEpoch || 0,
-        messageType: msg.messageType || 'TEXT',
-        metadata: msg.metadata || null,
-        isDeleted: msg.isDeleted || false,
-        plaintext,
-        status: MessageStatus.DELIVERED,
-        createdAt: msg.createdAt || new Date().toISOString(),
-        updatedAt: msg.updatedAt || new Date().toISOString(),
-      };
-
-      await saveMessage(message);
-      chatStore().addMessage(message);
-
-      const activeRoomId = chatStore().activeRoomId;
-      if (msg.channelId !== activeRoomId) {
-        chatStore().incrementUnread(msg.channelId);
-        await incrementRoomUnread(msg.channelId);
+      // Open conversations decode + persist their own messages; cache the
+      // rest so opening that chat later is instant.
+      if (!isActive) {
+        if (raw.senderId !== myId) chatStore().incrementUnread(raw.channelId);
+        const stored = await decodeServerMessage(raw);
+        if (stored) await saveMessage(stored);
       }
-    } catch (err) {
-      console.error('[Socket] Failed to process message:new:', err);
+    } catch {
+      // Malformed payload or IndexedDB unavailable — the next history sync recovers
     }
+  });
+
+  socket.on(SOCKET_EVENTS.MESSAGE_DELETED, (data) => {
+    if (!data?.messageId) return;
+    markMessageDeleted(data.messageId).catch(() => {});
   });
 
   // ─── Typing Events ───────────────────────────────────────────────

@@ -87,12 +87,11 @@ function randomBigInt(bytes = 32): bigint {
  * Returns { A, M1, K } where A and M1 are hex strings for the server.
  */
 export async function srpClient(params: {
-  username: string;
   password: string;
   srpSalt: string;
   B: string;
 }): Promise<{ A: string; M1: string; K: string }> {
-  const { username, password, srpSalt, B } = params;
+  const { password, srpSalt, B } = params;
   const Bn = BigInt("0x" + B);
 
   // Client secret
@@ -131,7 +130,6 @@ export async function srpClient(params: {
   // Server does: sha256(Buffer.from(srpSalt, 'hex')) — decode hex to raw bytes first
   const saltRaw = hexToBytes(srpSalt);
   const hSalt = await sha256(saltRaw);
-  const hUser = await sha256(new TextEncoder().encode(username));
 
   const M1Bytes = await sha256(xorHN_HG, hSalt, bigintToBytes(A), bigintToBytes(Bn), KBytes);
   const M1 = bytesToHex(M1Bytes);
@@ -140,16 +138,27 @@ export async function srpClient(params: {
 }
 
 /**
- * Verify server proof M2 = H(A, M1, K).
+ * Verify the server proof. Mirrors ZEVRA-Server srp.service.ts exactly:
+ *   M2 = sha256(pad256(A) || bytes(M1 hex) || K)  → hex
+ * A is left-padded to the 2048-bit group size (256 bytes).
  */
-export async function verifyM2(
-  A: string,
-  M1: string,
-  K: string
-): Promise<boolean> {
-  const ABytes = hexToBytes(A);
-  const M1Bytes = hexToBytes(M1);
-  const KBytes = hexToBytes(K);
-  const expected = await sha256(ABytes, M1Bytes, KBytes);
-  return bytesToHex(expected) === M1;
+export async function verifyM2(params: {
+  A: string;
+  M1: string;
+  K: string;
+  serverM2: string;
+}): Promise<boolean> {
+  const { A, M1, K, serverM2 } = params;
+  if (!serverM2) return false;
+  const ABytes = bigintToBytes(BigInt("0x" + A));
+  const expected = await sha256(ABytes, hexToBytes(M1), hexToBytes(K));
+  const expectedHex = bytesToHex(expected);
+  const given = serverM2.toLowerCase();
+  // Constant-time-ish compare (lengths are fixed for valid proofs)
+  if (given.length !== expectedHex.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expectedHex.length; i++) {
+    diff |= expectedHex.charCodeAt(i) ^ given.charCodeAt(i);
+  }
+  return diff === 0;
 }

@@ -4,13 +4,12 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FiSearch, FiUserPlus, FiX, FiLoader, FiAlertCircle } from "react-icons/fi";
 import { useRouter } from "next/navigation";
-import { api } from "@/utils/api";
+import { api, getErrorMessage } from "@/utils/api";
 import { useAuthStore } from "@/context/stores";
 
 interface User {
   id: string;
   username: string;
-  email: string;
   status?: string;
 }
 
@@ -50,7 +49,7 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
         if (!cancelled) setSearchResults(data.filter((u) => u.id !== me?.id));
       })
       .catch((err) => {
-        if (!cancelled) setSearchError(err?.message || "Search failed");
+        if (!cancelled) setSearchError(getErrorMessage(err, "Search failed"));
       })
       .finally(() => {
         if (!cancelled) setSearching(false);
@@ -68,8 +67,8 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
       );
       onClose();
       router.push(`/chat/dm/${channel.id}`);
-    } catch (err: any) {
-      setCreateError(err?.response?.data?.message || err?.message || "Failed to create chat");
+    } catch (err) {
+      setCreateError(getErrorMessage(err, "Failed to create chat"));
     } finally {
       setCreating(false);
     }
@@ -178,7 +177,7 @@ export default function NewChatModal({ open, onClose }: NewChatModalProps) {
                     </div>
                     <div>
                       <p className="font-medium">{u.username}</p>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{u.email}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{u.status === "ONLINE" ? "Online" : "Offline"}</p>
                     </div>
                   </div>
 

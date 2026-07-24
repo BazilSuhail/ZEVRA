@@ -3,10 +3,19 @@ import { MessageStatus } from '@/constants';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+/**
+ * 'ok'     → plaintext holds the decrypted content
+ * 'failed' → could not decrypt (missing envelope, bad key, corrupt data)
+ * 'locked' → our private keys are not unlocked on this device yet
+ * The ciphertext fields are always kept so failed/locked rows can be retried.
+ */
+export type DecryptState = 'ok' | 'failed' | 'locked';
+
 export interface StoredMessage {
   id: string;
   channelId: string;
   senderId: string;
+  senderUsername?: string | null;
   ciphertext: string;
   iv: string;
   tag: string;
@@ -16,8 +25,11 @@ export interface StoredMessage {
   messageType: string;
   metadata: Record<string, unknown> | null;
   isDeleted: boolean;
-  // Decrypted plaintext (kept in memory + IDB for fast load)
+  // Decrypted plaintext — only meaningful when decryptState === 'ok'
   plaintext: string;
+  decryptState?: DecryptState;
+  // Ed25519 signature check: true = valid, false = invalid, undefined = not checked
+  verified?: boolean;
   // Delivery status
   status: MessageStatus;
   // Timestamps
@@ -43,18 +55,18 @@ export interface StoredRoom {
   updatedAt: string;
 }
 
-export interface StoredKey {
+interface StoredKey {
   channelId: string;
-  wrappedKey: string; // AES-KW wrapped chat key (base64)
+  wrappedKey: string;
   epoch: number;
   updatedAt: string;
 }
 
-export interface PendingOp {
+interface PendingOp {
   id: string;
   type: 'send' | 'reaction' | 'mark-read';
   channelId: string;
-  payload: string; // JSON serialized
+  payload: string;
   status: 'pending' | 'failed';
   retries: number;
   createdAt: string;
@@ -83,6 +95,8 @@ export interface StoredCall {
 
 // ─── Database ───────────────────────────────────────────────────────────────
 
+const DB_NAME = 'zevra-chat';
+
 class ChatDatabase extends Dexie {
   messages!: EntityTable<StoredMessage, 'id'>;
   rooms!: EntityTable<StoredRoom, 'id'>;
@@ -92,7 +106,7 @@ class ChatDatabase extends Dexie {
   identity!: EntityTable<StoredIdentity, 'id'>;
 
   constructor() {
-    super('zevra-chat');
+    super(DB_NAME);
 
     this.version(1).stores({
       messages: 'id, channelId, senderId, status, createdAt, [channelId+sequenceNumber]',
@@ -121,199 +135,71 @@ export function getDB(): ChatDatabase {
   return db;
 }
 
-export function closeDB() {
+/** Close the connection and delete the whole local database (logout). */
+export async function destroyDB(): Promise<void> {
   if (db) {
     db.close();
     db = null;
+  }
+  try {
+    await Dexie.delete(DB_NAME);
+  } catch {
+    // Blocked by another tab — the next login overwrites the identity row anyway
   }
 }
 
 // ─── Message Helpers ────────────────────────────────────────────────────────
 
+// Rows written by older builds stored the literal "[Encrypted message]" as
+// plaintext; surface them as failed so they get retried instead of shown.
+const LEGACY_FAILED_PLACEHOLDER = '[Encrypted message]';
+
+function normalize(m: StoredMessage): StoredMessage {
+  if (m.decryptState) return m;
+  if (m.plaintext === LEGACY_FAILED_PLACEHOLDER) {
+    return { ...m, plaintext: '', decryptState: 'failed' };
+  }
+  return { ...m, decryptState: 'ok' };
+}
+
 export async function saveMessage(message: StoredMessage): Promise<void> {
-  const database = getDB();
-  await database.messages.put(message);
+  await getDB().messages.put(message);
 }
 
 export async function saveMessages(messages: StoredMessage[]): Promise<void> {
-  const database = getDB();
-  await database.messages.bulkPut(messages);
+  if (messages.length === 0) return;
+  await getDB().messages.bulkPut(messages);
 }
 
-export async function getMessage(messageId: string): Promise<StoredMessage | undefined> {
-  const database = getDB();
-  return database.messages.get(messageId);
-}
-
-export async function getChannelMessages(
-  channelId: string,
-  limit = 50,
-): Promise<StoredMessage[]> {
-  const database = getDB();
-  return database.messages
-    .where('channelId')
+export async function getChannelMessages(channelId: string): Promise<StoredMessage[]> {
+  const rows = await getDB()
+    .messages.where('channelId')
     .equals(channelId)
     .sortBy('createdAt');
+  return rows.map(normalize);
 }
 
-export async function getLatestMessageTimestamp(
-  channelId: string,
-): Promise<string | null> {
-  const database = getDB();
-  const last = await database.messages
-    .where('channelId')
-    .equals(channelId)
-    .last();
-  return last?.createdAt ?? null;
+export async function getMessagesByIds(ids: string[]): Promise<Map<string, StoredMessage>> {
+  const rows = await getDB().messages.bulkGet(ids);
+  const map = new Map<string, StoredMessage>();
+  for (const r of rows) if (r) map.set(r.id, normalize(r));
+  return map;
 }
 
-export async function getChannelMessagesAfter(
-  channelId: string,
-  afterTimestamp: string,
-): Promise<StoredMessage[]> {
-  const database = getDB();
-  return database.messages
-    .where('[channelId+createdAt]')
-    .between([channelId, afterTimestamp], [channelId, '\uffff'])
-    .toArray();
-}
-
-export async function updateMessageStatus(
-  messageId: string,
-  status: MessageStatus,
-): Promise<void> {
-  const database = getDB();
-  await database.messages.update(messageId, { status });
-}
-
-export async function deleteMessage(messageId: string): Promise<void> {
-  const database = getDB();
-  await database.messages.delete(messageId);
-}
-
-// ─── Room Helpers ───────────────────────────────────────────────────────────
-
-export async function saveRoom(room: StoredRoom): Promise<void> {
-  const database = getDB();
-  await database.rooms.put(room);
-}
-
-export async function getRooms(): Promise<StoredRoom[]> {
-  const database = getDB();
-  return database.rooms.orderBy('lastMessageAt').reverse().toArray();
-}
-
-export async function getRoom(channelId: string): Promise<StoredRoom | undefined> {
-  const database = getDB();
-  return database.rooms.get(channelId);
-}
-
-export async function updateRoomUnread(channelId: string, count: number): Promise<void> {
-  const database = getDB();
-  await database.rooms.update(channelId, { unreadCount: count });
-}
-
-export async function incrementRoomUnread(channelId: string): Promise<void> {
-  const database = getDB();
-  const room = await database.rooms.get(channelId);
-  if (room) {
-    await database.rooms.update(channelId, {
-      unreadCount: room.unreadCount + 1,
-    });
-  }
-}
-
-// ─── Key Helpers ────────────────────────────────────────────────────────────
-
-export async function saveKey(key: StoredKey): Promise<void> {
-  const database = getDB();
-  await database.keys.put(key);
-}
-
-export async function getKey(channelId: string): Promise<StoredKey | undefined> {
-  const database = getDB();
-  return database.keys.get(channelId);
-}
-
-// ─── Pending Ops Helpers ────────────────────────────────────────────────────
-
-export async function addPendingOp(op: PendingOp): Promise<void> {
-  const database = getDB();
-  await database.pendingOps.put(op);
-}
-
-export async function getPendingOps(): Promise<PendingOp[]> {
-  const database = getDB();
-  return database.pendingOps
-    .where('status')
-    .equals('pending')
-    .toArray();
-}
-
-export async function updatePendingOp(id: string, updates: Partial<PendingOp>): Promise<void> {
-  const database = getDB();
-  await database.pendingOps.update(id, updates);
-}
-
-export async function removePendingOp(id: string): Promise<void> {
-  const database = getDB();
-  await database.pendingOps.delete(id);
-}
-
-// ─── Bulk Operations ────────────────────────────────────────────────────────
-
-export async function getUnreadCounts(): Promise<Record<string, number>> {
-  const database = getDB();
-  const rooms = await database.rooms.toArray();
-  const counts: Record<string, number> = {};
-  for (const room of rooms) {
-    if (room.unreadCount > 0) {
-      counts[room.id] = room.unreadCount;
-    }
-  }
-  return counts;
-}
-
-export async function clearAll(): Promise<void> {
-  const database = getDB();
-  await database.transaction(
-    'rw',
-    [database.messages, database.rooms, database.keys, database.pendingOps, database.calls],
-    async () => {
-      await database!.messages.clear();
-      await database!.rooms.clear();
-      await database!.keys.clear();
-      await database!.pendingOps.clear();
-      await database!.calls.clear();
-    },
-  );
+export async function markMessageDeleted(messageId: string): Promise<void> {
+  await getDB().messages.update(messageId, {
+    isDeleted: true,
+    plaintext: '',
+    ciphertext: '',
+    decryptState: 'ok',
+  });
 }
 
 // ─── Call Helpers ────────────────────────────────────────────────────────────
 
-export async function saveCall(call: StoredCall): Promise<void> {
-  const database = getDB();
-  await database.calls.put(call);
-}
-
 export async function getCalls(): Promise<StoredCall[]> {
   const database = getDB();
   return database.calls.orderBy('startedAt').reverse().toArray();
-}
-
-export async function getCall(callId: string): Promise<StoredCall | undefined> {
-  const database = getDB();
-  return database.calls.get(callId);
-}
-
-export async function updateCall(callId: string, updates: Partial<StoredCall>): Promise<void> {
-  const database = getDB();
-  await database.calls.update(callId, updates);
-}
-
-export async function deleteCall(callId: string): Promise<void> {
-  const database = getDB();
-  await database.calls.delete(callId);
 }
 
 export async function searchCalls(query: string): Promise<StoredCall[]> {

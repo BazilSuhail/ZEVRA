@@ -10,6 +10,8 @@ export interface UiState {
   sidebarOpen: boolean;
   searchQuery: string;
   isMobile: boolean;
+  /** "Unlock keys" password prompt (session only, never persisted) */
+  unlockKeysOpen: boolean;
 }
 
 export interface UiActions {
@@ -18,6 +20,7 @@ export interface UiActions {
   setSidebarOpen: (open: boolean) => void;
   setSearchQuery: (query: string) => void;
   setIsMobile: (mobile: boolean) => void;
+  setUnlockKeysOpen: (open: boolean) => void;
 }
 
 // ─── Store ──────────────────────────────────────────────────────────────────
@@ -31,6 +34,7 @@ export const useUiStore = create<UiState & UiActions>()(
         sidebarOpen: true,
         searchQuery: '',
         isMobile: false,
+        unlockKeysOpen: false,
 
         // Actions
         setTheme: (theme) => set({ theme }, false, 'setTheme'),
@@ -46,6 +50,9 @@ export const useUiStore = create<UiState & UiActions>()(
 
         setIsMobile: (isMobile) =>
           set({ isMobile }, false, 'setIsMobile'),
+
+        setUnlockKeysOpen: (unlockKeysOpen) =>
+          set({ unlockKeysOpen }, false, 'setUnlockKeysOpen'),
       }),
       {
         name: 'zevra-ui',

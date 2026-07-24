@@ -1,77 +1,61 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FiCheck, FiCopy, FiKey, FiRefreshCw, FiShield, FiLoader, FiAlertCircle } from "react-icons/fi";
-import { api } from "@/utils/api";
+import { FiCheck, FiCopy, FiKey, FiShield, FiLoader, FiAlertCircle, FiInfo, FiLock, FiUnlock } from "react-icons/fi";
+import { api, getErrorMessage } from "@/utils/api";
+import { keyFingerprint } from "@/lib/e2ee";
+import { useAuthStore } from "@/context/stores/auth-store";
+import { useUiStore } from "@/context/stores/ui-store";
+import { useIdentityStatus } from "@/components/chat/use-identity-status";
 
-interface KeyInfo {
+// GET /keys/me — public halves + sealed private blobs (never shown)
+interface MyKeys {
   id: string;
-  userId: string;
   publicKey: string;
-  keyType: string;
-  algorithm: string;
-  keySize: number;
-  fingerprint: string;
-  version: number;
-  isActive: boolean;
-  createdAt: string;
+  publicKeySign: string;
+  keyVersion: number;
+}
+
+function groupHex(hex: string) {
+  return hex ? hex.replace(/(.{4})/g, "$1 ").trim() : "—";
 }
 
 export default function KeysPage() {
-  const [keys, setKeys] = useState<KeyInfo[]>([]);
+  const userId = useAuthStore((s) => s.user?.id);
+  const identityStatus = useIdentityStatus(userId);
+  const openUnlock = useUiStore((s) => s.setUnlockKeysOpen);
+
+  const [keys, setKeys] = useState<MyKeys | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [rotating, setRotating] = useState(false);
-  const [rotated, setRotated] = useState(false);
+  const [copied, setCopied] = useState<"enc" | "sign" | null>(null);
 
   useEffect(() => {
     api
-      .get<KeyInfo[]>("/keys/me")
-      .then((data) => setKeys(data))
-      .catch((err) => setError(err?.message || "Failed to load keys"))
+      .get<MyKeys | null>("/keys/me")
+      .then((data) => setKeys(data ?? null))
+      .catch((err) => setError(getErrorMessage(err, "Failed to load keys")))
       .finally(() => setLoading(false));
   }, []);
 
-  const activeKey = keys.find((k) => k.isActive) || keys[0];
+  const encFingerprint = keys?.publicKey ? keyFingerprint(keys.publicKey) : "";
+  const signFingerprint = keys?.publicKeySign ? keyFingerprint(keys.publicKeySign) : "";
 
-  const fingerprint = activeKey?.fingerprint
-    ? activeKey.fingerprint.replace(/(.{4})/g, "$1 ").trim()
-    : "—";
-
-  const copyFingerprint = () => {
-    if (!activeKey?.fingerprint) return;
-    navigator.clipboard.writeText(activeKey.fingerprint);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  const copy = (which: "enc" | "sign", value: string) => {
+    if (!value) return;
+    navigator.clipboard.writeText(value).catch(() => {});
+    setCopied(which);
+    setTimeout(() => setCopied(null), 1500);
   };
 
-  const handleRotate = async () => {
-    setRotating(true);
-    try {
-      const newKey = await api.post<KeyInfo>("/keys/rotate", {
-        algorithm: "X25519",
-        keyType: "IDENTITY",
-      });
-      setKeys((prev) => [
-        newKey,
-        ...prev.map((k) => ({ ...k, isActive: false })),
-      ]);
-      setRotated(true);
-      setTimeout(() => setRotated(false), 3000);
-    } catch {
-      // silent
-    } finally {
-      setRotating(false);
-    }
-  };
+  const version = keys ? `v${String(keys.keyVersion ?? 1).padStart(2, "0")}` : "";
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto bg-[#fbfcfd] dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white px-6 py-6 dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-500">Cryptography</p>
         <h1 className="mt-1 text-2xl font-bold">Encryption keys</h1>
-        <p className="mt-1 text-sm text-zinc-500">Your key identity and rotation history.</p>
+        <p className="mt-1 text-sm text-zinc-500">Your public key identity and key version.</p>
       </header>
 
       <div className="mx-auto w-full space-y-4 p-6">
@@ -97,84 +81,87 @@ export default function KeysPage() {
                 <div>
                   <p className="font-semibold">Key version</p>
                   <p className="text-xs text-zinc-500">
-                    {activeKey
-                      ? `v${String(activeKey.version).padStart(2, "0")} — ${activeKey.algorithm}`
-                      : "No keys found"}
+                    {keys ? `${version} — X25519 + Ed25519` : "No keys found"}
                   </p>
                 </div>
               </div>
-              {activeKey && (
+              {keys && (
                 <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
-                  v{String(activeKey.version).padStart(2, "0")}
+                  {version}
                 </span>
               )}
             </div>
 
-            <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="mb-4 flex items-center gap-3">
-                <FiShield className="text-emerald-600" />
-                <p className="font-semibold">Public identity</p>
-              </div>
-              <div className="rounded-lg bg-zinc-50 p-3 font-mono text-xs text-zinc-500 dark:bg-zinc-800">
-                {activeKey?.algorithm || "X25519"} · {fingerprint}
-              </div>
-              <button
-                onClick={copyFingerprint}
-                className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
-              >
-                {copied ? <FiCheck /> : <FiCopy />}
-                {copied ? "Copied" : "Copy fingerprint"}
-              </button>
-            </div>
-
-            <button
-              onClick={handleRotate}
-              disabled={rotating}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {rotating ? (
-                <>
-                  <FiLoader className="h-4 w-4 animate-spin" />
-                  Rotating...
-                </>
-              ) : rotated ? (
-                <>
-                  <FiCheck className="h-4 w-4" />
-                  New key generated
-                </>
-              ) : (
-                <>
-                  <FiRefreshCw className="h-4 w-4" />
-                  Rotate keys
-                </>
-              )}
-            </button>
-
-            {keys.length > 1 && (
-              <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-                <p className="mb-3 font-semibold">Key history</p>
-                <div className="space-y-2">
-                  {keys.map((k) => (
-                    <div
-                      key={k.id}
-                      className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800"
-                    >
-                      <div>
-                        <span className="text-sm font-medium">
-                          v{String(k.version).padStart(2, "0")}
-                        </span>
-                        <span className="ml-2 text-xs text-zinc-400">
-                          {k.isActive ? "Active" : "Retired"}
-                        </span>
-                      </div>
-                      <span className="text-xs text-zinc-400">
-                        {new Date(k.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex items-center gap-3">
+                {identityStatus === "unlocked" ? (
+                  <FiUnlock className="text-emerald-600" />
+                ) : (
+                  <FiLock className="text-amber-600" />
+                )}
+                <div>
+                  <p className="font-semibold">This device</p>
+                  <p className="text-xs text-zinc-500">
+                    {identityStatus === "unlocked"
+                      ? "Private keys unlocked — messages decrypt locally"
+                      : identityStatus === "locked"
+                        ? "Private keys locked — enter your password to decrypt messages"
+                        : "Checking..."}
+                  </p>
                 </div>
               </div>
+              {identityStatus === "locked" && (
+                <button
+                  type="button"
+                  onClick={() => openUnlock(true)}
+                  className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700"
+                >
+                  Unlock keys
+                </button>
+              )}
+            </div>
+
+            {keys && (
+              <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="mb-4 flex items-center gap-3">
+                  <FiShield className="text-emerald-600" />
+                  <p className="font-semibold">Public identity</p>
+                </div>
+
+                <p className="mb-1.5 text-xs font-medium text-zinc-500">Encryption key (X25519)</p>
+                <div className="rounded-lg bg-zinc-50 p-3 font-mono text-xs break-all text-zinc-500 dark:bg-zinc-800">
+                  {groupHex(encFingerprint)}
+                </div>
+                <button
+                  onClick={() => copy("enc", encFingerprint)}
+                  className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                >
+                  {copied === "enc" ? <FiCheck /> : <FiCopy />}
+                  {copied === "enc" ? "Copied" : "Copy fingerprint"}
+                </button>
+
+                <p className="mt-4 mb-1.5 text-xs font-medium text-zinc-500">Signing key (Ed25519)</p>
+                <div className="rounded-lg bg-zinc-50 p-3 font-mono text-xs break-all text-zinc-500 dark:bg-zinc-800">
+                  {groupHex(signFingerprint)}
+                </div>
+                <button
+                  onClick={() => copy("sign", signFingerprint)}
+                  className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                >
+                  {copied === "sign" ? <FiCheck /> : <FiCopy />}
+                  {copied === "sign" ? "Copied" : "Copy fingerprint"}
+                </button>
+              </div>
             )}
+
+            <div className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+              <FiInfo className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" />
+              <p>
+                Key rotation isn&apos;t available in the web app yet. Rotating requires generating new
+                key pairs on your device and sealing them with your password, so it can&apos;t be done
+                by the server alone. Fingerprints are the first 128 bits of SHA-256 over each public key.
+              </p>
+            </div>
           </>
         )}
       </div>

@@ -6,6 +6,7 @@ import { useAuthStore } from "@/context/stores";
 import Sidebar from "@/components/layout/Sidebar";
 import ChatList from "@/components/layout/ChatList";
 import { SplashLoader } from "@/components/loaders/SplashLoader";
+import UnlockKeysModal from "@/components/modals/UnlockKeysModal";
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -40,6 +41,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
       <div className={`${isChatRoot ? "hidden md:flex" : "flex"} min-w-0 flex-1 flex-col`}>
         {children}
       </div>
+      <UnlockKeysModal />
     </div>
   );
 }

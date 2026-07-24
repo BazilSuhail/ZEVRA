@@ -7,7 +7,7 @@ import { bindSocketHandlers, unbindSocketHandlers } from '@/lib/socket-handlers'
 import { useAuthStore } from '@/context/stores/auth-store';
 import { useSocketStore } from '@/context/stores/socket-store';
 import { useUiStore } from '@/context/stores/ui-store';
-import { setTokens, loadRefreshToken, api, getAccessToken } from '@/utils/api';
+import { setTokens, loadRefreshToken, api, getAccessToken, clearTokens } from '@/utils/api';
 import { initCallRingtone } from '@/utils/ringtone';
 import OutgoingCallModal from '@/components/calls/OutgoingCallModal';
 import IncomingCallModal from '@/components/calls/IncomingCallModal';
@@ -32,11 +32,16 @@ function initSocket(token: string): AppSocket {
     unbindSocketHandlers(socketInstance);
     disconnectSocket();
     socketInstance = null;
+    // Listeners were removed before disconnect, so flag it here — consumers
+    // see a clean false → true transition when the new socket connects
+    useSocketStore.getState().setConnected(false);
   }
 
   socketToken = token;
   socketInstance = connectSocket(token);
   bindSocketHandlers(socketInstance);
+  // Let components re-attach their listeners to the new instance
+  useSocketStore.getState().bumpGeneration();
 
   return socketInstance;
 }
@@ -47,6 +52,7 @@ function destroySocket() {
     disconnectSocket();
     socketInstance = null;
     socketToken = null;
+    useSocketStore.getState().setConnected(false);
   }
 }
 
@@ -132,6 +138,7 @@ function useAuthInit() {
             if (freshToken !== token) useAuthStore.getState().setAccessToken(freshToken);
             initSocket(freshToken);
           } else {
+            clearTokens();
             logout();
             window.location.href = '/auth/login';
           }

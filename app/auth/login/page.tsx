@@ -5,8 +5,8 @@ import { motion, AnimatePresence, MotionConfig } from "motion/react";
 import { FiLock, FiUser, FiLoader, FiAlertCircle, FiShield, FiKey, FiZap, FiArrowRight } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/context/stores";
-import { api, setTokens } from "@/utils";
-import { srpClient } from "@/utils/srp";
+import { api, setTokens, getErrorMessage } from "@/utils";
+import { srpClient, verifyM2 } from "@/utils/srp";
 import { unlockIdentity, type UserKeys } from "@/lib/e2ee";
 import Link from "next/link";
 import Image from "next/image";
@@ -67,7 +67,6 @@ export default function LoginPage() {
     try {
       const startRes = await api.post<{
         success: boolean;
-        userId: string;
         username: string;
         srpSalt: string;
         B: string;
@@ -75,8 +74,7 @@ export default function LoginPage() {
 
       if (!startRes.success) throw new Error("Login start failed");
 
-      const { A, M1 } = await srpClient({
-        username: username.trim(),
+      const { A, M1, K } = await srpClient({
         password,
         srpSalt: startRes.srpSalt,
         B: startRes.B,
@@ -87,6 +85,7 @@ export default function LoginPage() {
         user: { id: string; username: string; email: string };
         accessToken: string;
         refreshToken: string;
+        expiresIn?: number;
         keys: UserKeys;
         M2: string;
       }>("/api/auth/login/finish", {
@@ -97,25 +96,31 @@ export default function LoginPage() {
 
       if (!finishRes.success) throw new Error("Login failed");
 
-      setTokens(finishRes.accessToken, finishRes.refreshToken);
-      setAuth(finishRes.user, finishRes.accessToken);
+      // Mutual authentication: the server must prove it knows the verifier
+      const serverOk = await verifyM2({ A, M1, K, serverM2: finishRes.M2 });
+      if (!serverOk) {
+        throw new Error("Server identity could not be verified — sign-in aborted");
+      }
 
-      // Unwrap our E2EE private keys while the password is in memory
+      // Unwrap our E2EE private keys while the password is in memory.
+      // Without them nothing can be decrypted, so a failure stops sign-in.
       if (finishRes.keys?.encryptedPrivateKey) {
         try {
           await unlockIdentity(finishRes.user.id, finishRes.keys, password);
-        } catch (e) {
-          console.error("[E2EE] Failed to unlock private keys:", e);
+        } catch {
+          throw new Error(
+            "Signed in, but your encryption keys could not be unlocked. Please try again.",
+          );
         }
       }
 
+      setTokens(finishRes.accessToken, finishRes.refreshToken, finishRes.expiresIn);
+      setAuth(finishRes.user, finishRes.accessToken);
+      setBlobMood("happy");
+
       router.push("/chat");
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Invalid credentials";
-      setError(Array.isArray(msg) ? msg[0] : msg);
+    } catch (err) {
+      setError(getErrorMessage(err, "Invalid credentials"));
       setBlobMood("sad");
     } finally {
       setLoading(false);

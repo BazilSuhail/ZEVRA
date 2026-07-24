@@ -8,7 +8,8 @@ import { api } from "@/utils/api";
 import { useAuthStore } from "@/context/stores";
 import { useChatStore } from "@/context/stores/chat-store";
 import { useSocketStore } from "@/context/stores/socket-store";
-import { decryptMessage } from "@/lib/e2ee";
+import { decryptMessage, onIdentityChange, type DecryptResult } from "@/lib/e2ee";
+import type { RawServerMessage } from "@/lib/message-decode";
 import { contentPreviewText } from "@/lib/message-content";
 import { getSocket } from "@/lib/socket";
 import { SOCKET_EVENTS } from "@/constants";
@@ -61,6 +62,18 @@ interface InboxRow {
   lastMessageSenderKeyEpoch: number | null;
   createdAt: string;
   dmPeerId: string | null;
+  unreadCount?: number;
+}
+
+interface ChannelDetails {
+  name: string | null;
+  members?: { id: string; username: string }[];
+}
+
+function previewForResult(res: DecryptResult): string {
+  if (res.state === "ok") return contentPreviewText(res.plaintext);
+  if (res.state === "locked") return "Encrypted message";
+  return "Can't decrypt message";
 }
 
 type FilterTab = "all" | "direct" | "group";
@@ -72,6 +85,7 @@ export default function ChatList() {
   const unreadCounts = useChatStore((s) => s.unreadCounts);
   const sentPreviews = useChatStore((s) => s.sentPreviews);
   const isConnected = useSocketStore((s) => s.isConnected);
+  const generation = useSocketStore((s) => s.generation);
   const onlineUsers = useSocketStore((s) => s.onlineUsers);
 
   const [rooms, setRooms] = useState<InboxRow[]>([]);
@@ -81,80 +95,133 @@ export default function ChatList() {
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
 
+  const userId = user?.id;
+  const roomsRef = useRef<InboxRow[]>([]);
+  const nameMapRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    roomsRef.current = rooms;
+  }, [rooms]);
+  useEffect(() => {
+    nameMapRef.current = nameMap;
+  }, [nameMap]);
+
   // ─── Decrypt a single preview ────────────────────────────────────────
-  const decryptPreview = useCallback(
-    async (r: InboxRow): Promise<string> => {
-      if (!r.lastMessageContent) {
-        if (r.lastMessageAt) return "";
-        return r.type === "GROUP" ? "No messages yet" : "New conversation";
-      }
-      // No IV/tag means legacy plaintext
-      if (!r.lastMessageIv || !r.lastMessageTag) {
-        return contentPreviewText(r.lastMessageContent);
-      }
-      try {
-        const plaintext = await decryptMessage({
-          channelId: r.id,
-          senderId: r.lastMessageSenderId || "",
-          encryptedContent: r.lastMessageContent,
-          contentIv: r.lastMessageIv,
-          contentTag: r.lastMessageTag,
-          metadata: r.lastMessageMetadata,
-        });
-        if (plaintext !== null) return contentPreviewText(plaintext);
-      } catch {}
-      return "[Encrypted message]";
+  const decryptPreview = useCallback(async (r: InboxRow): Promise<string> => {
+    if (!r.lastMessageContent) {
+      if (r.lastMessageAt) return "";
+      return r.type === "GROUP" ? "No messages yet" : "New conversation";
+    }
+    try {
+      const res = await decryptMessage({
+        channelId: r.id,
+        senderId: r.lastMessageSenderId || "",
+        encryptedContent: r.lastMessageContent,
+        contentIv: r.lastMessageIv,
+        contentTag: r.lastMessageTag,
+        metadata: r.lastMessageMetadata,
+      });
+      return previewForResult(res);
+    } catch {
+      return "Can't decrypt message";
+    }
+  }, []);
+
+  // ─── Resolve DM peer names (non-blocking) ─────────────────────────────
+  const resolveNames = useCallback(
+    async (data: InboxRow[]) => {
+      const pending = data.filter(
+        (r) => r.type === "DIRECT" && !r.name && !nameMapRef.current[r.id],
+      );
+      if (pending.length === 0) return;
+      const entries = await Promise.allSettled(
+        pending.map(async (r) => {
+          if (r.lastMessageSenderId && r.lastMessageSenderId !== userId && r.lastMessageSenderName) {
+            return { id: r.id, name: r.lastMessageSenderName };
+          }
+          try {
+            const channel = await api.get<ChannelDetails>(`/channels/${r.id}`);
+            if (channel?.name) return { id: r.id, name: channel.name };
+            const other = channel?.members?.find((m) => m.id !== userId);
+            if (other?.username) return { id: r.id, name: other.username };
+          } catch {
+            // fall through to the best name we have
+          }
+          return { id: r.id, name: r.lastMessageSenderName || "Unknown" };
+        }),
+      );
+      const updates: Record<string, string> = {};
+      entries.forEach((e) => {
+        if (e.status === "fulfilled") updates[e.value.id] = e.value.name;
+      });
+      setNameMap((prev) => ({ ...prev, ...updates }));
     },
-    [],
+    [userId],
   );
 
-  // ─── Fetch channels (initial load) ────────────────────────────────────
+  // ─── Load / reload the inbox ──────────────────────────────────────────
+  const loadingRef = useRef(false);
+  const reloadQueuedRef = useRef(false);
+
+  const loadChannels = useCallback(async () => {
+    if (loadingRef.current) {
+      reloadQueuedRef.current = true;
+      return;
+    }
+    loadingRef.current = true;
+    try {
+      const data = await api.get<InboxRow[]>("/channels");
+      const entries = await Promise.all(
+        data.map(async (r) => [r.id, await decryptPreview(r)] as const),
+      );
+      // Set previews + rooms together so previews are ready on first render
+      setPreviewMap(Object.fromEntries(entries));
+      setRooms(data);
+      setLoaded(true);
+
+      // Server-side unread counters (Redis) — the open room is always read
+      if (data.some((r) => typeof r.unreadCount === "number")) {
+        const active = useChatStore.getState().activeRoomId;
+        useChatStore.getState().setUnreadCounts(
+          Object.fromEntries(
+            data
+              .filter((r) => r.id !== active && (r.unreadCount ?? 0) > 0)
+              .map((r) => [r.id, r.unreadCount as number]),
+          ),
+        );
+      }
+
+      void resolveNames(data);
+    } catch {
+      setLoaded(true);
+    } finally {
+      loadingRef.current = false;
+      if (reloadQueuedRef.current) {
+        reloadQueuedRef.current = false;
+        void loadChannels();
+      }
+    }
+  }, [decryptPreview, resolveNames]);
+
+  // Initial load
   useEffect(() => {
     if (!isAuthenticated || loaded) return;
-    api
-      .get<InboxRow[]>("/channels")
-      .then(async (data) => {
-        // Decrypt previews first
-        const newPreviewMap: Record<string, string> = {};
-        for (const r of data) {
-          newPreviewMap[r.id] = await decryptPreview(r);
-        }
-        setPreviewMap(newPreviewMap);
+    void loadChannels();
+  }, [isAuthenticated, loaded, loadChannels]);
 
-        // Set rooms + loaded together so previews are ready on first render
-        setRooms(data);
-        setLoaded(true);
-
-        // Fetch names for DM channels where name is null (non-blocking)
-        const dmWithoutName = data.filter(
-          (r) => r.type === "DIRECT" && !r.name && r.lastMessageSenderId,
-        );
-        if (dmWithoutName.length > 0) {
-          const entries = await Promise.allSettled(
-            dmWithoutName.map(async (r) => {
-              if (r.lastMessageSenderId !== user?.id && r.lastMessageSenderName) {
-                return { id: r.id, name: r.lastMessageSenderName };
-              }
-              try {
-                const channel = await api.get<any>(`/channels/${r.id}`);
-                if (channel?.name) return { id: r.id, name: channel.name };
-                if (channel?.members) {
-                  const other = channel.members.find((m: any) => m.id !== user?.id);
-                  if (other?.username) return { id: r.id, name: other.username };
-                }
-              } catch {}
-              return { id: r.id, name: r.lastMessageSenderName || "Unknown" };
-            }),
+  // Keys unlocked later (password prompt) → re-decrypt previews
+  useEffect(
+    () =>
+      onIdentityChange((id) => {
+        if (!id) return;
+        void (async () => {
+          const entries = await Promise.all(
+            roomsRef.current.map(async (r) => [r.id, await decryptPreview(r)] as const),
           );
-          const updates: Record<string, string> = {};
-          entries.forEach((e) => {
-            if (e.status === "fulfilled") updates[e.value.id] = e.value.name;
-          });
-          setNameMap((prev) => ({ ...prev, ...updates }));
-        }
-      })
-      .catch(() => setLoaded(true));
-  }, [isAuthenticated, loaded, user?.id, decryptPreview]);
+          setPreviewMap((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+        })();
+      }),
+    [decryptPreview],
+  );
 
   // ─── Resync on reconnect: catch up rooms created/changed while offline ─
   const everConnected = useRef(false);
@@ -167,43 +234,40 @@ export default function ChatList() {
     const isReconnect = everConnected.current && !prevConnected.current;
     everConnected.current = true;
     prevConnected.current = true;
-
-    if (isReconnect && isAuthenticated) {
-      api.get<InboxRow[]>("/channels").then(async (data) => {
-        const newPreviewMap: Record<string, string> = {};
-        for (const r of data) {
-          newPreviewMap[r.id] = await decryptPreview(r);
-        }
-        setPreviewMap(newPreviewMap);
-        setRooms(data);
-      }).catch(() => {});
-    }
-  }, [isConnected, isAuthenticated, decryptPreview]);
+    if (isReconnect && isAuthenticated) void loadChannels();
+  }, [isConnected, isAuthenticated, loadChannels]);
 
   // ─── Real-time updates via socket ─────────────────────────────────────
   useEffect(() => {
-    if (!loaded || !isConnected) return;
+    if (!loaded) return;
     const socket = getSocket();
     if (!socket) return;
 
-    const handleMessageNew = async (msg: any) => {
-      const channelId = msg.channelId;
+    const handleMessageNew = async (payload: unknown) => {
+      const msg = payload as RawServerMessage;
+      const channelId = msg?.channelId;
       if (!channelId) return;
 
-      let preview = msg.encryptedContent || "";
-      if (msg.contentIv && msg.contentTag) {
-        try {
-          const plaintext = await decryptMessage({
+      // A room we don't know yet (e.g. created while this tab was away)
+      if (!roomsRef.current.some((r) => r.id === channelId)) {
+        void loadChannels();
+        return;
+      }
+
+      let preview: string;
+      try {
+        preview = previewForResult(
+          await decryptMessage({
             channelId,
             senderId: msg.senderId || "",
             encryptedContent: msg.encryptedContent,
             contentIv: msg.contentIv,
             contentTag: msg.contentTag,
             metadata: msg.metadata,
-          });
-          if (plaintext !== null) preview = contentPreviewText(plaintext);
-          else preview = "[Encrypted message]";
-        } catch {}
+          }),
+        );
+      } catch {
+        preview = "Can't decrypt message";
       }
 
       setPreviewMap((prevMap) => ({ ...prevMap, [channelId]: preview }));
@@ -217,17 +281,78 @@ export default function ChatList() {
           ...prev[idx],
           lastMessageAt: msg.createdAt || new Date().toISOString(),
           lastMessageSenderId: msg.senderId || prev[idx].lastMessageSenderId,
+          lastMessageSenderName: msg.senderUsername ?? prev[idx].lastMessageSenderName,
         };
         const others = prev.filter((r) => r.id !== channelId);
         return [room, ...others];
       });
     };
 
+    const handleChannelCreated = (data: {
+      channel: { id: string; type: string; name: string | null; createdAt: string };
+      memberIds: string[];
+    }) => {
+      const ch = data?.channel;
+      if (!ch?.id || roomsRef.current.some((r) => r.id === ch.id)) return;
+      const row: InboxRow = {
+        id: ch.id,
+        name: ch.name,
+        type: ch.type,
+        isArchived: false,
+        lastMessageAt: null,
+        lastMessageContent: null,
+        lastMessageSenderId: null,
+        lastMessageSenderName: null,
+        lastMessageIv: null,
+        lastMessageTag: null,
+        lastMessageMetadata: null,
+        lastMessageSenderKeyEpoch: null,
+        createdAt: ch.createdAt,
+        dmPeerId:
+          ch.type === "DIRECT" ? (data.memberIds?.find((id) => id !== userId) ?? null) : null,
+      };
+      setRooms((prev) => (prev.some((r) => r.id === row.id) ? prev : [row, ...prev]));
+      setPreviewMap((prev) => ({
+        ...prev,
+        [row.id]: row.type === "GROUP" ? "No messages yet" : "New conversation",
+      }));
+      // The server already joined our sockets; joining again is idempotent
+      getSocket()?.emit(SOCKET_EVENTS.JOIN_CHANNEL, { channelId: row.id }, () => {});
+      void resolveNames([row]);
+    };
+
+    const handleMemberAdded = (data: { channelId: string; userId: string }) => {
+      if (data?.userId === userId && !roomsRef.current.some((r) => r.id === data.channelId)) {
+        void loadChannels();
+      }
+    };
+
+    const handleMemberRemoved = (data: { channelId: string; userId: string }) => {
+      if (data?.userId !== userId) return;
+      setRooms((prev) => prev.filter((r) => r.id !== data.channelId));
+      useChatStore.getState().resetUnread(data.channelId);
+    };
+
+    const handleMessageDeleted = (data: { messageId: string; channelId: string }) => {
+      // The deleted message may have been the room's preview — refresh it
+      if (data?.channelId && roomsRef.current.some((r) => r.id === data.channelId)) {
+        void loadChannels();
+      }
+    };
+
     socket.on(SOCKET_EVENTS.MESSAGE_NEW, handleMessageNew);
+    socket.on(SOCKET_EVENTS.CHANNEL_CREATED, handleChannelCreated);
+    socket.on(SOCKET_EVENTS.CHANNEL_MEMBER_ADDED, handleMemberAdded);
+    socket.on(SOCKET_EVENTS.CHANNEL_MEMBER_REMOVED, handleMemberRemoved);
+    socket.on(SOCKET_EVENTS.MESSAGE_DELETED, handleMessageDeleted);
     return () => {
       socket.off(SOCKET_EVENTS.MESSAGE_NEW, handleMessageNew);
+      socket.off(SOCKET_EVENTS.CHANNEL_CREATED, handleChannelCreated);
+      socket.off(SOCKET_EVENTS.CHANNEL_MEMBER_ADDED, handleMemberAdded);
+      socket.off(SOCKET_EVENTS.CHANNEL_MEMBER_REMOVED, handleMemberRemoved);
+      socket.off(SOCKET_EVENTS.MESSAGE_DELETED, handleMessageDeleted);
     };
-  }, [loaded, isConnected]);
+  }, [loaded, generation, userId, loadChannels, resolveNames]);
 
   // ─── Apply our own just-sent messages (no message:new echo for sender) ─
   useEffect(() => {
@@ -288,9 +413,6 @@ export default function ChatList() {
       return prefix + decrypted;
     }
     // Fallback while previewMap is loading
-    if (room.lastMessageContent) {
-      return room.lastMessageContent;
-    }
     if (room.lastMessageAt) {
       return "";
     }

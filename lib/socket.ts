@@ -1,6 +1,5 @@
 import { io, Socket } from 'socket.io-client';
 import { API_URL, APP, SOCKET_EVENTS } from '@/constants';
-import { getAccessToken } from '@/utils/api';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -13,8 +12,6 @@ export interface SocketUser {
 export interface ServerToClientEvents {
   [SOCKET_EVENTS.CONNECTED]: (data: SocketUser) => void;
   [SOCKET_EVENTS.CONNECT_ERROR]: (error: { code: string; message: string }) => void;
-  [SOCKET_EVENTS.FORCED_DISCONNECT]: (data: { reason: string }) => void;
-  [SOCKET_EVENTS.USER_MESSAGE]: (message: unknown) => void;
   [SOCKET_EVENTS.USER_JOINED]: (data: {
     userId: string;
     username: string;
@@ -48,6 +45,14 @@ export interface ServerToClientEvents {
     emoji: string;
     channelId: string;
   }) => void;
+  [SOCKET_EVENTS.MESSAGE_DELETED]: (data: { messageId: string; channelId: string }) => void;
+  [SOCKET_EVENTS.CHANNEL_CREATED]: (data: {
+    channel: { id: string; type: string; name: string | null; createdAt: string };
+    memberIds: string[];
+    createdBy: string;
+  }) => void;
+  [SOCKET_EVENTS.CHANNEL_MEMBER_ADDED]: (data: { channelId: string; userId: string }) => void;
+  [SOCKET_EVENTS.CHANNEL_MEMBER_REMOVED]: (data: { channelId: string; userId: string }) => void;
   [SOCKET_EVENTS.HEARTBEAT_ACK]: (data: { timestamp: number }) => void;
   [SOCKET_EVENTS.PRESENCE_BULK]: (data: { online: string[] }) => void;
 
@@ -118,7 +123,11 @@ export interface ClientToServerEvents {
       messageType?: string;
       metadata?: Record<string, unknown>;
     },
-    callback: (response: { success: boolean; message?: unknown; error?: string }) => void,
+    callback: (response: {
+      success: boolean;
+      message?: { id: string; sequenceNumber?: number; createdAt?: string } | string;
+      error?: string;
+    }) => void,
   ) => void;
   [SOCKET_EVENTS.GET_MESSAGES]: (
     data: { channelId: string; limit?: number; cursor?: number; mode?: 'latest' | 'before' | 'since' },

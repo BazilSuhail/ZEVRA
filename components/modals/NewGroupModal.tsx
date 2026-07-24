@@ -4,13 +4,12 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FiSearch, FiUsers, FiX, FiLoader, FiAlertCircle } from "react-icons/fi";
 import { useRouter } from "next/navigation";
-import { api } from "@/utils/api";
+import { api, getErrorMessage } from "@/utils/api";
 import { useAuthStore } from "@/context/stores";
 
 interface User {
   id: string;
   username: string;
-  email: string;
   status?: string;
 }
 
@@ -53,7 +52,7 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
         if (!cancelled) setSearchResults(data.filter((u) => u.id !== me?.id));
       })
       .catch((err) => {
-        if (!cancelled) setSearchError(err?.message || "Search failed");
+        if (!cancelled) setSearchError(getErrorMessage(err, "Search failed"));
       })
       .finally(() => {
         if (!cancelled) setSearching(false);
@@ -99,8 +98,8 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
       );
       onClose();
       router.push(`/chat/group/${channel.id}`);
-    } catch (err: any) {
-      setCreateError(err?.response?.data?.message || err?.message || "Failed to create group");
+    } catch (err) {
+      setCreateError(getErrorMessage(err, "Failed to create group"));
     } finally {
       setCreating(false);
     }
@@ -271,7 +270,7 @@ export default function NewGroupModal({ open, onClose }: NewGroupModalProps) {
                       </div>
                       <div>
                         <p className="font-medium">{u.username}</p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{u.email}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{u.status === "ONLINE" ? "Online" : "Offline"}</p>
                       </div>
                     </div>
 

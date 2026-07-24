@@ -4,7 +4,7 @@
 //   import { useAuthStore, useChatStore, useSocketStore, useUiStore, useCallStore } from '@/context/stores';
 //
 //   const user = useAuthStore((s) => s.user);
-//   const rooms = useChatStore((s) => s.rooms);
+//   const unread = useChatStore((s) => s.unreadCounts);
 //   const isConnected = useSocketStore((s) => s.isConnected);
 //   const theme = useUiStore((s) => s.theme);
 //   const activeCall = useCallStore((s) => s.activeCall);

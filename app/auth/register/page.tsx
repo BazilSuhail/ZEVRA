@@ -13,7 +13,7 @@ import {
   FiKey,
   FiZap,
 } from "react-icons/fi";
-import { api } from "@/utils";
+import { api, getErrorMessage } from "@/utils";
 import Link from "next/link";
 import Image from "next/image";
 import ClientBlob from "@/components/auth/ClientBlob";
@@ -89,10 +89,8 @@ export default function RegisterPage() {
         password,
       });
       setSuccess(true);
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.message || err?.message || "Something went wrong";
-      setError(Array.isArray(msg) ? msg[0] : msg);
+    } catch (err) {
+      setError(getErrorMessage(err, "Something went wrong"));
       setBlobMood("sad");
     } finally {
       setLoading(false);

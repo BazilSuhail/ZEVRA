@@ -20,7 +20,7 @@ import { useAuthStore } from "@/context/stores";
 import { useUiStore } from "@/context/stores/ui-store";
 import type { Theme } from "@/context/stores/ui-store";
 import { useCallStore } from "@/context/stores/call-store";
-import { api } from "@/utils/api";
+import { api, getErrorMessage } from "@/utils/api";
 
 const GRID_IMAGE =
   "linear-gradient(to right, rgba(255,255,255,0.28) 1px, transparent 1px), " +
@@ -128,8 +128,8 @@ export default function ProfilePage() {
       setEditing(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to update profile");
+    } catch (err) {
+      setError(getErrorMessage(err, "Failed to update profile"));
     } finally {
       setSaving(false);
     }

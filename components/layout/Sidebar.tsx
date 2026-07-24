@@ -5,7 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/context/stores";
-import { api } from "@/utils";
+import { api, clearTokens } from "@/utils";
+import { useChatStore } from "@/context/stores/chat-store";
+import { useSocketStore } from "@/context/stores/socket-store";
+import { clearIdentity } from "@/lib/e2ee";
+import { destroyDB } from "@/lib/db";
 
 import { disconnectSocket } from "@/lib/socket";
 import ThemeToggle from "@/components/theme/ThemeToggle";
@@ -42,19 +46,25 @@ export default function Sidebar() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const clearAllData = async () => {
-    const databases = await indexedDB.databases();
-    await Promise.all(
-      databases.map((db) => {
-        if (db.name) {
-          return new Promise<void>((resolve, reject) => {
-            const req = indexedDB.deleteDatabase(db.name!);
-            req.onsuccess = () => resolve();
-            req.onerror = () => reject(req.error);
-            req.onblocked = () => resolve();
-          });
-        }
-      })
-    );
+    // Close our own Dexie connection first — an open connection blocks deletion
+    await destroyDB();
+    try {
+      const databases = await indexedDB.databases();
+      await Promise.all(
+        databases.map((db) =>
+          db.name
+            ? new Promise<void>((resolve) => {
+                const req = indexedDB.deleteDatabase(db.name!);
+                req.onsuccess = () => resolve();
+                req.onerror = () => resolve();
+                req.onblocked = () => resolve();
+              })
+            : Promise.resolve(),
+        ),
+      );
+    } catch {
+      // indexedDB.databases() is unsupported in some browsers — zevra-chat is already gone
+    }
     localStorage.clear();
     sessionStorage.clear();
   };
@@ -64,13 +74,15 @@ export default function Sidebar() {
     setSheetOpen(false);
     try {
       await api.post("/api/auth/logout");
-    } catch {}
+    } catch {
+      // Server unreachable — local logout still proceeds
+    }
     disconnectSocket();
-    try {
-      const { clearIdentity } = await import("@/lib/e2ee");
-      await clearIdentity();
-    } catch {}
+    await clearIdentity();
     await clearAllData();
+    clearTokens();
+    useChatStore.getState().reset();
+    useSocketStore.getState().reset();
     logout();
     router.push("/auth/login");
   };

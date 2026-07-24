@@ -1,20 +1,11 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { StoredMessage, StoredRoom, MessageReaction } from '@/lib/db';
-import { MessageStatus } from '@/constants';
+import type { MessageReaction } from '@/lib/db';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface ChatState {
-  // Rooms
-  rooms: StoredRoom[];
   activeRoomId: string | null;
-
-  // Messages (decrypted, for active room)
-  messages: StoredMessage[];
-  isLoadingMessages: boolean;
-  hasMoreMessages: boolean;
-  messageCursor: string | null;
 
   // Unread
   unreadCounts: Record<string, number>;
@@ -30,28 +21,18 @@ export interface ChatState {
   // Emoji reactions keyed by messageId (hydrated from GET_MESSAGES,
   // kept live via reaction:added / reaction:removed socket events)
   reactionsByMessage: Record<string, MessageReaction[]>;
+
+  // Messages with a local reaction intent not yet confirmed by the server.
+  // History hydration must not overwrite their optimistic reactions.
+  pendingReactionOps: Record<string, number>;
 }
 
 export interface ChatActions {
-  // Rooms
-  setRooms: (rooms: StoredRoom[]) => void;
-  addRoom: (room: StoredRoom) => void;
-  updateRoom: (channelId: string, updates: Partial<StoredRoom>) => void;
   setActiveRoom: (channelId: string | null) => void;
-
-  // Messages
-  setMessages: (messages: StoredMessage[]) => void;
-  addMessage: (message: StoredMessage) => void;
-  updateMessage: (messageId: string, updates: Partial<StoredMessage>) => void;
-  updateMessageStatus: (messageId: string, status: MessageStatus) => void;
-  deleteMessage: (messageId: string) => void;
-  prependMessages: (messages: StoredMessage[]) => void;
-  setLoadingMessages: (loading: boolean) => void;
-  setHasMore: (hasMore: boolean) => void;
-  setMessageCursor: (cursor: string | null) => void;
 
   // Unread
   setUnreadCounts: (counts: Record<string, number>) => void;
+  mergeUnreadCounts: (counts: Record<string, number>) => void;
   incrementUnread: (channelId: string) => void;
   resetUnread: (channelId: string) => void;
 
@@ -67,142 +48,54 @@ export interface ChatActions {
 
   // Reactions
   setReactionsBulk: (byMessage: Record<string, MessageReaction[]>) => void;
+  /** History hydration: skips messages that have pending local reaction ops. */
+  mergeReactionsFromHistory: (byMessage: Record<string, MessageReaction[]>) => void;
   addReaction: (messageId: string, reaction: MessageReaction) => void;
   removeReaction: (messageId: string, userId: string, emoji: string) => void;
+  beginReactionOp: (messageId: string) => void;
+  endReactionOp: (messageId: string) => void;
 
   // Reset
   reset: () => void;
 }
 
 const initialState: ChatState = {
-  rooms: [],
   activeRoomId: null,
-  messages: [],
-  isLoadingMessages: false,
-  hasMoreMessages: true,
-  messageCursor: null,
   unreadCounts: {},
   totalUnread: 0,
   typingUsers: {},
   sentPreviews: {},
   reactionsByMessage: {},
+  pendingReactionOps: {},
 };
+
+const sum = (counts: Record<string, number>) =>
+  Object.values(counts).reduce((acc, n) => acc + n, 0);
 
 // ─── Store ──────────────────────────────────────────────────────────────────
 
 export const useChatStore = create<ChatState & ChatActions>()(
   devtools(
-    (set, get) => ({
+    (set) => ({
       ...initialState,
 
-      // ─── Rooms ──────────────────────────────────────────────────────
-
-      setRooms: (rooms) => set({ rooms }, false, 'setRooms'),
-
-      addRoom: (room) =>
-        set(
-          (state) => ({
-            rooms: [room, ...state.rooms.filter((r) => r.id !== room.id)],
-          }),
-          false,
-          'addRoom',
-        ),
-
-      updateRoom: (channelId, updates) =>
-        set(
-          (state) => ({
-            rooms: state.rooms.map((r) =>
-              r.id === channelId ? { ...r, ...updates } : r,
-            ),
-          }),
-          false,
-          'updateRoom',
-        ),
-
-      setActiveRoom: (channelId) => {
-        set({ activeRoomId: channelId }, false, 'setActiveRoom');
-        // Reset messages when switching rooms
-        if (channelId) {
-          set(
-            { messages: [], messageCursor: null, hasMoreMessages: true },
-            false,
-            'setActiveRoom/reset',
-          );
-        }
-      },
-
-      // ─── Messages ──────────────────────────────────────────────────
-
-      setMessages: (messages) => set({ messages }, false, 'setMessages'),
-
-      addMessage: (message) =>
-        set(
-          (state) => {
-            // Deduplicate
-            if (state.messages.some((m) => m.id === message.id)) return state;
-            return { messages: [...state.messages, message] };
-          },
-          false,
-          'addMessage',
-        ),
-
-      updateMessage: (messageId, updates) =>
-        set(
-          (state) => ({
-            messages: state.messages.map((m) =>
-              m.id === messageId ? { ...m, ...updates } : m,
-            ),
-          }),
-          false,
-          'updateMessage',
-        ),
-
-      updateMessageStatus: (messageId, status) =>
-        set(
-          (state) => ({
-            messages: state.messages.map((m) =>
-              m.id === messageId ? { ...m, status } : m,
-            ),
-          }),
-          false,
-          'updateMessageStatus',
-        ),
-
-      deleteMessage: (messageId) =>
-        set(
-          (state) => ({
-            messages: state.messages.filter((m) => m.id !== messageId),
-          }),
-          false,
-          'deleteMessage',
-        ),
-
-      prependMessages: (newMessages) =>
-        set(
-          (state) => {
-            const existingIds = new Set(state.messages.map((m) => m.id));
-            const unique = newMessages.filter((m) => !existingIds.has(m.id));
-            return { messages: [...unique, ...state.messages] };
-          },
-          false,
-          'prependMessages',
-        ),
-
-      setLoadingMessages: (isLoadingMessages) =>
-        set({ isLoadingMessages }, false, 'setLoadingMessages'),
-
-      setHasMore: (hasMoreMessages) =>
-        set({ hasMoreMessages }, false, 'setHasMore'),
-
-      setMessageCursor: (messageCursor) =>
-        set({ messageCursor }, false, 'setMessageCursor'),
+      setActiveRoom: (channelId) => set({ activeRoomId: channelId }, false, 'setActiveRoom'),
 
       // ─── Unread ────────────────────────────────────────────────────
 
-      setUnreadCounts: (counts) => {
-        const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
-        set({ unreadCounts: counts, totalUnread: total }, false, 'setUnreadCounts');
-      },
+      setUnreadCounts: (counts) =>
+        set({ unreadCounts: counts, totalUnread: sum(counts) }, false, 'setUnreadCounts'),
+
+      mergeUnreadCounts: (counts) =>
+        set(
+          (state) => {
+            const next = { ...state.unreadCounts, ...counts };
+            for (const [id, n] of Object.entries(next)) if (!n) delete next[id];
+            return { unreadCounts: next, totalUnread: sum(next) };
+          },
+          false,
+          'mergeUnreadCounts',
+        ),
 
       incrementUnread: (channelId) =>
         set(
@@ -220,8 +113,10 @@ export const useChatStore = create<ChatState & ChatActions>()(
       resetUnread: (channelId) =>
         set(
           (state) => {
-            const current = state.unreadCounts[channelId] || 0;
-            const { [channelId]: _, ...rest } = state.unreadCounts;
+            if (!state.unreadCounts[channelId]) return state;
+            const current = state.unreadCounts[channelId];
+            const rest = { ...state.unreadCounts };
+            delete rest[channelId];
             return {
               unreadCounts: rest,
               totalUnread: Math.max(0, state.totalUnread - current),
@@ -255,7 +150,8 @@ export const useChatStore = create<ChatState & ChatActions>()(
             const updated = new Set(current);
             updated.delete(userId);
             if (updated.size === 0) {
-              const { [channelId]: _, ...rest } = state.typingUsers;
+              const rest = { ...state.typingUsers };
+              delete rest[channelId];
               return { typingUsers: rest };
             }
             return {
@@ -286,6 +182,20 @@ export const useChatStore = create<ChatState & ChatActions>()(
           }),
           false,
           'setReactionsBulk',
+        ),
+
+      mergeReactionsFromHistory: (byMessage) =>
+        set(
+          (state) => {
+            const next = { ...state.reactionsByMessage };
+            for (const [id, list] of Object.entries(byMessage)) {
+              if (state.pendingReactionOps[id]) continue;
+              next[id] = list;
+            }
+            return { reactionsByMessage: next };
+          },
+          false,
+          'mergeReactionsFromHistory',
         ),
 
       addReaction: (messageId, reaction) =>
@@ -328,6 +238,31 @@ export const useChatStore = create<ChatState & ChatActions>()(
           },
           false,
           'removeReaction',
+        ),
+
+      beginReactionOp: (messageId) =>
+        set(
+          (state) => ({
+            pendingReactionOps: {
+              ...state.pendingReactionOps,
+              [messageId]: (state.pendingReactionOps[messageId] || 0) + 1,
+            },
+          }),
+          false,
+          'beginReactionOp',
+        ),
+
+      endReactionOp: (messageId) =>
+        set(
+          (state) => {
+            const n = (state.pendingReactionOps[messageId] || 0) - 1;
+            const next = { ...state.pendingReactionOps };
+            if (n > 0) next[messageId] = n;
+            else delete next[messageId];
+            return { pendingReactionOps: next };
+          },
+          false,
+          'endReactionOp',
         ),
 
       // ─── Reset ─────────────────────────────────────────────────────

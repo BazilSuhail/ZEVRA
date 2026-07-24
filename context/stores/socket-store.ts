@@ -15,6 +15,9 @@ export interface SocketState {
   connectionError: string | null;
   /** Consecutive failed connection attempts — increments per `connect_error`. */
   failedAttempts: number;
+  /** Increments whenever a NEW socket instance is created or torn down —
+   *  effects that attach listeners depend on it to re-bind to the fresh one. */
+  generation: number;
 }
 
 export interface SocketActions {
@@ -30,6 +33,7 @@ export interface SocketActions {
   setConnectionError: (error: string) => void;
   /** Clear the connection error (called on successful connect). */
   clearConnectionError: () => void;
+  bumpGeneration: () => void;
   reset: () => void;
 }
 
@@ -46,6 +50,7 @@ export const useSocketStore = create<SocketState & SocketActions>()(
       onlineUsers: {},
       connectionError: null,
       failedAttempts: 0,
+      generation: 0,
 
       // Actions
       setStatus: (status) => set({ status }, false, 'setStatus'),
@@ -121,9 +126,12 @@ export const useSocketStore = create<SocketState & SocketActions>()(
           'clearConnectionError',
         ),
 
+      bumpGeneration: () =>
+        set((state) => ({ generation: state.generation + 1 }), false, 'bumpGeneration'),
+
       reset: () =>
         set(
-          {
+          (state) => ({
             status: 'disconnected',
             socketId: null,
             isConnected: false,
@@ -131,7 +139,8 @@ export const useSocketStore = create<SocketState & SocketActions>()(
             onlineUsers: {},
             connectionError: null,
             failedAttempts: 0,
-          },
+            generation: state.generation + 1,
+          }),
           false,
           'reset',
         ),
